@@ -156,17 +156,17 @@ class FCNet(nn.Module):
         channel_2 = 64
         channel_3 = 128
         channel_4 = 256
-        channel_5 = 16
-        self.encoder1 = ConvBlock(3, channel_1, kernel_size=11, stride=1, padding=5)
-        self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=7, stride=1, padding=3)
-        self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=5, stride=1, padding=2)
+        channel_5 = 32
+        self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
+        self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
+        self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
         self.encoder4 = ConvBlock(channel_3, channel_4, kernel_size=3, stride=1, padding=1)
         self.encoder5 = ConvBlock(channel_4, channel_5, kernel_size=3, stride=1, padding=1)
         self.decoder1 = DeConvBlock(channel_5, channel_4, kernel_size=3, stride=1, padding=1, dilation=1)
         self.decoder2 = DeConvBlock(channel_4, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder3 = DeConvBlock(channel_3, channel_2, kernel_size=5, stride=1, padding=2, dilation=1)
-        self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=7, stride=1, padding=3, dilation=1)
-        self.decoder5 = DeConvBlock(channel_1, 3, kernel_size=11, stride=1, padding=5, dilation=1)
+        self.decoder3 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder5 = DeConvBlock(channel_1, 3, kernel_size=3, stride=1, padding=1, dilation=1)
         self.maxpool = nn.MaxPool2d((2, 2), stride = 2)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()

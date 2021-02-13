@@ -24,10 +24,10 @@ GOT_data_list =  os.listdir(GOT_data_path)
 
 for index_2, i in enumerate(GOT_data_list):
     time1 = time.time()
-    # if index_2 < 2:
+    # if index_2 < 3:
     #     continue
-    if index_2 == 20:
-        assert False
+    # if index_2 == 45:
+    #     assert False
     # Path setting
     img_path = "D:/GOT/val/" + i + "/"
     gt_path = "D:/GOT/val/" + i + "/groundtruth.txt"
@@ -58,10 +58,9 @@ for index_2, i in enumerate(GOT_data_list):
             #time1 = time.time()
         else:
             x, y, w, h = tracker.tracker_inference(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
-            print(index)
             if index == 2:
                 break
-            tracker.tracker_update(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
+            #tracker.tracker_update(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
     
     print(index_2)
     print(time1 - time.time())
