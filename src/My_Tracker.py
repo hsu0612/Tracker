@@ -285,7 +285,7 @@ class FCAE_tracker():
             dx_search, dy_search =  gradient(search[:, :, 32:96, 32:96])
             dx_pred, dy_pred = gradient(pred[:, :, 32:96, 32:96])
             grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
-            loss = 0.5*reconstruction_loss + 0.5*gaussian_error_loss + grad_loss
+            loss = 0.4*reconstruction_loss + 0.6*gaussian_error_loss + grad_loss
             loss.backward()
             optimizer.step()
 
@@ -294,19 +294,19 @@ class FCAE_tracker():
         with torch.no_grad():
             pred, feature_map = self.model_foreground(search)
         
-        pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        pred_pil.save("./pred_img_with_foreground" + str(self.count_image) + str(video_num) + ".jpg")
+        # pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        # pred_pil.save("./pred_img_with_foreground" + str(self.count_image) + str(video_num) + ".jpg")
 
         # check error map
         error_map_fore = 1.0 - torch.abs(pred - search)
         error_map_fore = error_map_fore.mean(axis = 0)
         error_map_fore = error_map_fore.mean(axis = 0)
-        write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num))
+        # write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num))
 
         # check threshold map
         threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
         threshold_map_fore[threshold_map_fore!=0.0] = 1.0
-        write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./threshold_foregroud" + str(video_num))
+        # write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./threshold_foregroud" + str(video_num))
 
         # second stage
         # optimizer init
@@ -319,14 +319,15 @@ class FCAE_tracker():
             optimizer_fore.zero_grad()
 
             pred_back, feature_map = self.model_background(search)
-            error_map_back = torch.abs(pred_back - search)
-            dx_b, dy_b = gradient(error_map_back)
-            error_map_back = error_map_back.mean(axis = 0)
-            error_map_back = error_map_back.mean(axis = 0)
 
             background_diff = torch.abs(pred_back - search)
             background_diff[:, :, 32:96, 32:96] = 0.0
             background_diff_loss = background_diff.mean()
+
+            error_map_back = torch.abs(pred_back - search)
+            dx_b, dy_b = gradient(error_map_back)
+            error_map_back = error_map_back.mean(axis = 0)
+            error_map_back = error_map_back.mean(axis = 0)
 
             threshold_map = torch.nn.functional.threshold(error_map_back, self.threshold_for_background, 0.0, inplace=False)
             threshold_map[threshold_map>=self.threshold_for_background] = 1.0
@@ -336,14 +337,15 @@ class FCAE_tracker():
             threshold_map = threshold_map.to(self.device, dtype=self.data_type)
 
             pred_fore, feature_map_fore = self.model_foreground(search)
+
+            reconstruction_diff = torch.abs(pred_fore[:, :, 32:96, 32:96] - search[:, :, 32:96, 32:96])
+            reconstruction_loss = reconstruction_diff.mean()
+
             error_map_fore = 1.0 - torch.abs(pred_fore - search)
             dx, dy = gradient(error_map_fore)
             error_map_fore = error_map_fore.mean(axis = 0)
             error_map_fore = error_map_fore.mean(axis = 0)
             gaussian_error_loss = abs(error_map_fore[32:96, 32:96] - gaussian_map).mean()
-
-            reconstruction_diff = torch.abs(pred_fore[:, :, 32:96, 32:96] - search[:, :, 32:96, 32:96])
-            reconstruction_loss = reconstruction_diff.mean()
 
             threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
             # i have no idea 
@@ -362,7 +364,7 @@ class FCAE_tracker():
             dx_pred, dy_pred = gradient(pred_fore[:, :, 32:96, 32:96])
             grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
 
-            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss + 0.1*grad_loss
+            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss + 0.1*grad_loss + 0.1*smooth_loss
 
             loss.backward()
             optimizer_back.step()
@@ -374,12 +376,12 @@ class FCAE_tracker():
         self.threshold_map_save = threshold_map_fore.detach()
         self.threshold_map_back_save = threshold_map.detach()
 
-        write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_error" + str(video_num))
-        write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_thres" + str(video_num))
+        # write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_error" + str(video_num))
+        # write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_thres" + str(video_num))
 
 
-        write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./final_error_back" + str(video_num))
-        write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./final_thres_back" + str(video_num))
+        # write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./final_error_back" + str(video_num))
+        # write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./final_thres_back" + str(video_num))
 
         # with torch.no_grad():
         #     pred, feature_map = self.model_foreground(search)
@@ -414,9 +416,9 @@ class FCAE_tracker():
         img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
         img_pil.save("./pred_img" + str(self.count_image) + "_" + str(video_num) + ".jpg")
         # error map
-        error_map = torch.abs(pred - search)
-        error_map = torch.squeeze(error_map)
-        error_map = 1.0 - error_map.mean(axis = 0)
+        error_map = 1.0 - torch.abs(pred - search)
+        error_map = error_map.mean(axis = 0)
+        error_map = error_map.mean(axis = 0)
         # maybe has error
         error_map = np.where(search.detach().cpu().mean(axis = 1)[0, :, :] == 0, 0.0, error_map.detach().cpu())
         write_heat_map(error_map, self.count_image, "./error_map" + str(video_num))
@@ -503,16 +505,15 @@ class FCAE_tracker():
         # check error map
         error_map = torch.abs(pred - self.training_set)
         error_map = error_map.mean(axis = 1)
-        #write_heat_map(error_map[0].detach().cpu().detach().numpy(), self.count_image, "./error_background")
+        write_heat_map(error_map[0].detach().cpu().detach().numpy(), self.count_image, "./error_background")
 
         # check threshold map
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
         threshold_map[threshold_map!=0.0] = 1.0
-
-        # write_heat_map(threshold_map[0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background" + str(video_num))
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
         threshold_map_mask_center[:, 32:96, 32:96] = threshold_map[:, 32:96, 32:96]
         threshold_map=threshold_map_mask_center
+        write_heat_map(threshold_map[0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background" + str(video_num))
 
         # check search
         # img_pil = torchvision.transforms.ToPILImage()(self.training_set[0].detach().cpu())
@@ -546,7 +547,7 @@ class FCAE_tracker():
             dx_pred, dy_pred = gradient(pred[:, :, 32:96, 32:96])
             grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
             
-            loss = 0.5*reconstruction_loss + 0.5*gaussian_error_loss + grad_loss
+            loss = 0.4*reconstruction_loss + 0.6*gaussian_error_loss + grad_loss
             loss.backward()
             optimizer.step()
 
@@ -572,10 +573,10 @@ class FCAE_tracker():
         # second stage
         # optimizer init
         optimizer_back = optim.Adam(list(self.model_background.parameters()), lr = 1e-4)
-        optimizer_fore = optim.Adam(list(self.model_foreground.parameters()), lr = 2e-4)
+        optimizer_fore = optim.Adam(list(self.model_foreground.parameters()), lr = 1e-4)
         #scheduler = lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.95)
         # iter
-        for i in range(0, 1000, 1):
+        for i in range(0, 500, 1):
             optimizer_back.zero_grad()
             optimizer_fore.zero_grad()
 
@@ -587,7 +588,7 @@ class FCAE_tracker():
             background_diff_loss = background_diff.mean()
             # error
             error_map_back = torch.abs(pred_back - self.training_set)
-            # dx_b, dy_b = gradient(error_map_back)
+            dx_b, dy_b = gradient(error_map_back)
             error_map_back = error_map_back.mean(axis = 0)
             error_map_back = error_map_back.mean(axis = 0)
             # threshold
@@ -607,13 +608,12 @@ class FCAE_tracker():
             error_map_fore = error_map_fore.mean(axis = 0)
             gaussian_error_loss = abs(error_map_fore[32:96, 32:96] - gaussian_map).mean()
             
-            # dx, dy = gradient(error_map_fore)
-            # dx_c, dy_c = gradient(self.training_set)
-            # dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
-            # dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
-            # dx_c, dy_c = 1.0-dx_c, 1.0-dy_c
+            dx_c, dy_c = gradient(self.training_set)
+            dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
+            dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
+            dx_c, dy_c = 1.0-dx_c, 1.0-dy_c
 
-            # smooth_loss = ((abs(dx_c*dx)).mean() + (abs(dy_c*dy)).mean()+ (abs(dx_c*dx_b)).mean()+ (abs(dy_c*dy_b)).mean())
+            smooth_loss = ((abs(dx_c*dx)).mean() + (abs(dy_c*dy)).mean()+ (abs(dx_c*dx_b)).mean()+ (abs(dy_c*dy_b)).mean())
 
             # loss
             reconstruction_diff = torch.abs(pred_fore[:, :, 32:96, 32:96] - self.training_set[:, :, 32:96, 32:96])
@@ -627,11 +627,13 @@ class FCAE_tracker():
             dx_pred, dy_pred = gradient(pred_fore[:, :, 32:96, 32:96])
             grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
 
-            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss + 0.1*grad_loss
-            # check loss
-            if i % 100 == 0:
-                print("loss")
-                print(loss)
+            area_loss = abs(self.threshold_map_save.sum() - threshold_map.sum()) / (128*128)
+
+            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss + 0.1*grad_loss + 0.1*smooth_loss + area_loss
+            # # check loss
+            # if i % 100 == 0:
+            #     print("loss")
+            #     print(loss)
             loss.backward()
             optimizer_back.step()
             optimizer_fore.step()
