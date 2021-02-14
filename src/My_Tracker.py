@@ -282,7 +282,10 @@ class FCAE_tracker():
             error_map_fore = error_map_fore.mean(axis = 0)
             error_map_fore = error_map_fore.mean(axis = 0)
             gaussian_error_loss = abs(error_map_fore - gaussian_map).mean()
-            loss = 0.5*reconstruction_loss + 0.5*gaussian_error_loss
+            dx_search, dy_search =  gradient(search[:, :, 32:96, 32:96])
+            dx_pred, dy_pred = gradient(pred[:, :, 32:96, 32:96])
+            grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
+            loss = 0.5*reconstruction_loss + 0.5*gaussian_error_loss + grad_loss
             loss.backward()
             optimizer.step()
 
@@ -291,19 +294,19 @@ class FCAE_tracker():
         with torch.no_grad():
             pred, feature_map = self.model_foreground(search)
         
-        # pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        # pred_pil.save("./pred_img_with_foreground" + str(self.count_image) + str(video_num) + ".jpg")
+        pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        pred_pil.save("./pred_img_with_foreground" + str(self.count_image) + str(video_num) + ".jpg")
 
         # check error map
         error_map_fore = 1.0 - torch.abs(pred - search)
         error_map_fore = error_map_fore.mean(axis = 0)
         error_map_fore = error_map_fore.mean(axis = 0)
-        # write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num))
+        write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num))
 
         # check threshold map
         threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
         threshold_map_fore[threshold_map_fore!=0.0] = 1.0
-        # write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./threshold_foregroud" + str(video_num))
+        write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./threshold_foregroud" + str(video_num))
 
         # second stage
         # optimizer init
@@ -333,14 +336,13 @@ class FCAE_tracker():
             threshold_map = threshold_map.to(self.device, dtype=self.data_type)
 
             pred_fore, feature_map_fore = self.model_foreground(search)
-            error_map_fore = torch.abs(pred_fore - search)
+            error_map_fore = 1.0 - torch.abs(pred_fore - search)
             dx, dy = gradient(error_map_fore)
-            error_map_fore = torch.squeeze(error_map_fore)
             error_map_fore = error_map_fore.mean(axis = 0)
-            error_map_fore = 1.0 - error_map_fore
+            error_map_fore = error_map_fore.mean(axis = 0)
+            gaussian_error_loss = abs(error_map_fore[32:96, 32:96] - gaussian_map).mean()
 
-            reconstruction_diff = torch.abs(pred_fore - search) * threshold_map.to(self.device, dtype=self.data_type)
-            reconstruction_diff = torch.squeeze(reconstruction_diff)
+            reconstruction_diff = torch.abs(pred_fore[:, :, 32:96, 32:96] - search[:, :, 32:96, 32:96])
             reconstruction_loss = reconstruction_diff.mean()
 
             threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
@@ -356,9 +358,11 @@ class FCAE_tracker():
 
             smooth_loss = ((abs(dx_c*dx)).mean() + (abs(dy_c*dy)).mean()+ (abs(dx_c*dx_b)).mean()+ (abs(dy_c*dy_b)).mean())
 
-            loss = background_diff_loss + reconstruction_loss + consistency_loss# + 0.1*smooth_loss
-            if i % 100 == 0:
-                print(consistency_loss)
+            dx_search, dy_search =  gradient(search[:, :, 32:96, 32:96])
+            dx_pred, dy_pred = gradient(pred_fore[:, :, 32:96, 32:96])
+            grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
+
+            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss + 0.1*grad_loss
 
             loss.backward()
             optimizer_back.step()
@@ -445,89 +449,6 @@ class FCAE_tracker():
         # pred_center_y = int(new_y + self.y)
         new_w = int(new_w)
         new_h = int(new_h)
-        
-        # # scale list
-        # factor_list = np.array([-0.025, 0.025, 0.0, -0.05, 0.05])
-        # scale_list = np.array(np.meshgrid(factor_list, factor_list))
-        # scale_list = scale_list.T.reshape(25, 2)
-
-        # location_list = []
-        # for i, scale in enumerate(scale_list):
-        #     grid = get_grid(img.shape[3], img.shape[2], self.x + scale[0]*img.shape[3] + int(self.w/2), self.y+scale[1]*img.shape[2]+ int(self.h/2), int(2*self.w), int(2*self.h), 128, 128)
-        #     grid = grid.to(dtype=self.data_type)
-        #     search = torch.nn.functional.grid_sample(img, grid)
-        #     search = search.to(self.device, dtype=self.data_type)
-        #     test = torch.ones(search.shape)
-        #     test = test.to(self.device, dtype=self.data_type)
-        #     with torch.no_grad():
-        #         pred, feature_map = self.model_background(search)
-        #         pred2, feature_map2 = self.model_foreground(pred)
-        #     img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        #     img_pil.save("./pred_img_" + str(i) + ".jpg")
-        #     # error map
-        #     error_map = torch.abs(pred - search)
-        #     error_map = torch.squeeze(error_map)
-        #     error_map = error_map.mean(axis = 0)
-        #     feature_error = abs(feature_map - feature_map2)
-        #     feature_error = torch.squeeze(feature_error)
-        #     feature_error = 1.0 - feature_error.mean(axis = 0)
-
-        #     write_heat_map(error_map.detach().cpu().numpy(), str(i), "./error_map")
-        #     location_list.append(error_map[32:96, 32:96].detach().cpu().numpy().mean())
-        # location_list = np.array(location_list)
-        # location_list = (location_list - location_list.min()) / (location_list.max() - location_list.min())
-        # location_list = location_list / location_list.sum()
-        # final_x = self.x
-        # final_y = self.y
-        # for i, scale in enumerate(location_list):
-        #     final_x += scale_list[i][0]*scale**img.shape[3]
-        #     final_y += scale_list[i][1]*scale**img.shape[2]
-            
-        # print(self.x)
-        # print(self.y)
-
-        # self.x = int(final_x)
-        # self.y = int(final_y)
-
-        # print(self.x)
-        # print(self.y)
-
-        # scale list
-        # factor_list = np.array([1.0, 0.9, 1.1, 0.9*0.9, 1.1*1.1])
-        # scale_list = np.array(np.meshgrid(factor_list, factor_list))
-        # scale_list = scale_list.T.reshape(25, 2)
-
-        # error_list = []
-        # for i, scale in enumerate(scale_list):
-        #     grid = get_grid(img.shape[3], img.shape[2], self.x, self.y, int(2*self.w*scale[0]), int(2*self.h*scale[1]), 128, 128)
-        #     grid = grid.to(dtype=self.data_type)
-        #     search = torch.nn.functional.grid_sample(img, grid)
-        #     search = search.to(self.device, dtype=self.data_type)
-        #     with torch.no_grad():
-        #         pred, feature_map = self.model_foreground(search)
-        #     # error map
-        #     error_map = torch.abs(pred - search)
-        #     error_map = torch.squeeze(error_map)
-        #     error_map = 1.0 - error_map.mean(axis = 0)
-        #     #write_heat_map(error_map.detach().cpu().numpy(), str(i), "./error_map")
-        #     error_list.append(error_map[32:96, 32:96].detach().cpu().numpy().mean())
-        # error_list = np.array(error_list)
-        # error_list = (error_list - error_list.min()) / (error_list.max() - error_list.min())
-        # error_list = error_list / error_list.sum()
-        # final_w = 0.0
-        # final_h = 0.0
-        # for i, scale in enumerate(error_list):
-        #     final_w += self.w*scale_list[i][0]*scale
-        #     final_h += self.h*scale_list[i][1]*scale
-
-        # print(self.w)
-        # print(self.h)
-
-        # self.w = int(final_w)
-        # self.h = int(final_h)
-
-        # print(self.w)
-        # print(self.h)
 
         self.x = new_x
         self.y = new_y
@@ -547,9 +468,9 @@ class FCAE_tracker():
         return self.x, self.y, self.w, self.h
     def tracker_update(self, img, realx, realy, realw, realh, video_count, number_of_frame, video_num):
         # model init
-        self.model_background = FCNet().to(self.device, dtype=self.data_type)
+        #self.model_background = FCNet().to(self.device, dtype=self.data_type)
         self.model_background.train()
-        self.model_foreground = FCNet().to(self.device, dtype=self.data_type)
+        #self.model_foreground = FCNet().to(self.device, dtype=self.data_type)
         self.model_foreground.train()
         # optimizer init
         optimizer = optim.Adam(self.model_background.parameters(), lr = 1e-4)
@@ -576,8 +497,8 @@ class FCAE_tracker():
         # check pred
         with torch.no_grad():
             pred, feature_map = self.model_background(self.training_set)
-        img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        img_pil.save("./pred_img_with_background" + str(self.count_image) + ".jpg")
+        # img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        # img_pil.save("./pred_img_with_background" + str(self.count_image) + ".jpg")
 
         # check error map
         error_map = torch.abs(pred - self.training_set)
@@ -588,7 +509,7 @@ class FCAE_tracker():
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
         threshold_map[threshold_map!=0.0] = 1.0
 
-        write_heat_map(threshold_map[0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background" + str(video_num))
+        # write_heat_map(threshold_map[0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background" + str(video_num))
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
         threshold_map_mask_center[:, 32:96, 32:96] = threshold_map[:, 32:96, 32:96]
         threshold_map=threshold_map_mask_center
@@ -621,7 +542,11 @@ class FCAE_tracker():
             error_map_fore = error_map_fore.mean(axis = 0)
             error_map_fore = error_map_fore.mean(axis = 0)
             gaussian_error_loss = abs(error_map_fore - gaussian_map).mean()
-            loss = 0.5*reconstruction_loss + 0.5*gaussian_error_loss
+            dx_search, dy_search =  gradient(self.training_set[:, :, 32:96, 32:96])
+            dx_pred, dy_pred = gradient(pred[:, :, 32:96, 32:96])
+            grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
+            
+            loss = 0.5*reconstruction_loss + 0.5*gaussian_error_loss + grad_loss
             loss.backward()
             optimizer.step()
 
@@ -630,8 +555,8 @@ class FCAE_tracker():
         with torch.no_grad():
             pred, feature_map = self.model_foreground(self.training_set)
         
-        img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        img_pil.save("./pred_img_with_foreground" + str(self.count_image) + ".jpg")
+        # img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        # img_pil.save("./pred_img_with_foreground" + str(self.count_image) + ".jpg")
 
         # check error map
         error_map = torch.abs(pred - self.training_set)
@@ -644,98 +569,82 @@ class FCAE_tracker():
         threshold_map_fore[threshold_map_fore!=0.0] = 1.0
         write_heat_map(threshold_map_fore[0].detach().cpu().numpy(), self.count_image, "./threshold_foregroud")
 
-        # # second stage
-        # # optimizer init
-        # optimizer_back = optim.Adam(list(self.model_background.parameters()), lr = 1e-4)
-        # optimizer_fore = optim.Adam(list(self.model_foreground.parameters()), lr = 1e-4)
-        # #scheduler = lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.95)
-        # # iter
-        # for i in range(0, 1000, 1):
-        #     optimizer_back.zero_grad()
-        #     optimizer_fore.zero_grad()
+        # second stage
+        # optimizer init
+        optimizer_back = optim.Adam(list(self.model_background.parameters()), lr = 1e-4)
+        optimizer_fore = optim.Adam(list(self.model_foreground.parameters()), lr = 2e-4)
+        #scheduler = lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.95)
+        # iter
+        for i in range(0, 1000, 1):
+            optimizer_back.zero_grad()
+            optimizer_fore.zero_grad()
 
-        #     pred_back, feature_map_back = self.model_background(self.training_set)
-        #     error_map_back = torch.abs(pred_back - self.training_set)
+            # prediction
+            pred_back, feature_map_back = self.model_background(self.training_set)
+            # loss_for background
+            background_diff = torch.abs(pred_back - self.training_set)
+            background_diff[:, :, 32:96, 32:96] = 0.0
+            background_diff_loss = background_diff.mean()
+            # error
+            error_map_back = torch.abs(pred_back - self.training_set)
+            # dx_b, dy_b = gradient(error_map_back)
+            error_map_back = error_map_back.mean(axis = 0)
+            error_map_back = error_map_back.mean(axis = 0)
+            # threshold
+            threshold_map = torch.nn.functional.threshold(error_map_back, self.threshold_for_background, 0.0, inplace=False)
+            threshold_map[threshold_map!=0.0] = 1.0
+            threshold_map_temp= torch.zeros(threshold_map.shape)
+            threshold_map_temp[32:96, 32:96] = threshold_map[32:96, 32:96]
+            threshold_map=threshold_map_temp
+            threshold_map = threshold_map.to(self.device, dtype=self.data_type)
 
-        #     dx_b, dy_b = gradient(error_map_back)
+            # prediction
+            pred_fore, feature_map_fore = self.model_foreground(self.training_set)
 
-        #     error_map_back = error_map_back.mean(axis = 1)
-        #     # loss
-        #     background_diff = torch.abs(pred_back - self.training_set)
-        #     background_diff[:, :, 32:96, 32:96] = 0.0
-        #     background_diff_loss = background_diff.mean()
-
-        #     threshold_map = torch.nn.functional.threshold(error_map_back, self.threshold_for_background, 0.0, inplace=False)
-        #     threshold_map[threshold_map!=0.0] = 1.0
-        #     threshold_map_temp= torch.zeros(threshold_map.shape)
-        #     threshold_map_temp[:, 32:96, 32:96] = threshold_map[:, 32:96, 32:96]
-        #     threshold_map=threshold_map_temp
-        #     threshold_map = threshold_map.to(self.device, dtype=self.data_type)
-
-        #     pred_fore, feature_map_fore = self.model_foreground(self.training_set)
-        #     error_map_fore = torch.abs(pred_fore - self.training_set)
+            error_map_fore = 1.0 - torch.abs(pred_fore - self.training_set)
+            dx, dy = gradient(error_map_fore)
+            error_map_fore = error_map_fore.mean(axis = 0)
+            error_map_fore = error_map_fore.mean(axis = 0)
+            gaussian_error_loss = abs(error_map_fore[32:96, 32:96] - gaussian_map).mean()
             
-        #     # gaussian_kernel = 1.0 - gkern(kernlen=128, std=1.0)
-        #     # gaussian_kernel2= np.zeros(gaussian_kernel.shape)
-        #     # gaussian_kernel2[32:96, 32:96] = gaussian_kernel[32:96, 32:96]
-        #     # gaussian_kernel = gaussian_kernel2
-        #     # gaussian_kernel = torch.Tensor(gaussian_kernel).to(self.device, dtype=self.data_type)
-        #     dx, dy = gradient(error_map_fore)
-        #     dx_c, dy_c = gradient(self.training_set)
-        #     dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
-        #     dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
-        #     dx_c, dy_c = 1.0-dx_c, 1.0-dy_c
+            # dx, dy = gradient(error_map_fore)
+            # dx_c, dy_c = gradient(self.training_set)
+            # dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
+            # dx, dy, dx_c, dy_c = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
+            # dx_c, dy_c = 1.0-dx_c, 1.0-dy_c
 
-        #     smooth_loss = ((abs(dx_c*dx)).mean() + (abs(dy_c*dy)).mean()+ (abs(dx_c*dx_b)).mean()+ (abs(dy_c*dy_b)).mean())
+            # smooth_loss = ((abs(dx_c*dx)).mean() + (abs(dy_c*dy)).mean()+ (abs(dx_c*dx_b)).mean()+ (abs(dy_c*dy_b)).mean())
 
-        #     error_map_fore = error_map_fore.mean(axis = 1)
-        #     error_map_fore = 1.0 - error_map_fore
+            # loss
+            reconstruction_diff = torch.abs(pred_fore[:, :, 32:96, 32:96] - self.training_set[:, :, 32:96, 32:96])
+            reconstruction_loss = reconstruction_diff.mean()
 
-        #     # loss
-        #     reconstruction_diff = torch.pow(pred_fore - self.training_set, 2) * torch.unsqueeze(threshold_map, 1).to(self.device, dtype=self.data_type)
-        #     reconstruction_diff[:, :] = reconstruction_diff[:, :]
+            threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
 
-        #     reconstruction_diff = torch.squeeze(reconstruction_diff)
-        #     reconstruction_loss = reconstruction_diff.mean()
+            consistency_loss = torch.abs((threshold_map - threshold_map_fore)).mean()
 
-        #     threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
+            dx_search, dy_search =  gradient(self.training_set[:, :, 32:96, 32:96])
+            dx_pred, dy_pred = gradient(pred_fore[:, :, 32:96, 32:96])
+            grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
 
-        #     consistency_loss = torch.abs((threshold_map - threshold_map_fore)).mean()
+            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss + 0.1*grad_loss
+            # check loss
+            if i % 100 == 0:
+                print("loss")
+                print(loss)
+            loss.backward()
+            optimizer_back.step()
+            optimizer_fore.step()
+            #scheduler.step()
 
-        #     area_loss = torch.abs((threshold_map_fore[-1].sum() - self.threshold_map_save.sum())/(128*128))
-        #     area_loss2 = torch.abs((threshold_map[-1].sum() - self.threshold_map_back_save.sum())/(128*128))
+        self.threshold_map_save = threshold_map_fore.detach()
+        self.threshold_map_back_save = threshold_map.detach()
 
-        #     background_diff_fore = 1.0-torch.abs(pred_fore - self.training_set)
-        #     background_diff_fore[:, :, 16:112, 16:112] = 0.0
-        #     background_diff_fore_loss = background_diff_fore.mean()
+        write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_error" + str(video_num))
+        write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_thres"+ str(video_num))
 
-        #     # write_heat_map(error_map_fore[-1].detach().cpu().detach().numpy(), self.count_image, "./final_error" + str(video_num))
-        #     # write_heat_map(threshold_map_fore[-1].detach().cpu().detach().numpy(), self.count_image, "./final_thres"+ str(video_num))
-
-        #     # write_heat_map(error_map_back[-1].detach().cpu().detach().numpy(), self.count_image, "./final_error_back" + str(video_num))
-        #     # write_heat_map(threshold_map[-1].detach().cpu().detach().numpy(), self.count_image, "./final_thres_back" + str(video_num))
-
-        #     # assert False
-
-        #     loss = background_diff_loss + reconstruction_loss + consistency_loss + area_loss + area_loss2 + 0.1*smooth_loss
-        #     # check loss
-        #     if i % 100 == 0:
-        #         print("loss")
-        #         print(loss)
-        #     loss.backward()
-        #     if i % 50 == 0 and i !=0:
-        #         optimizer_back.step()
-        #     optimizer_fore.step()
-        #     #scheduler.step()
-
-        # self.threshold_map_save = threshold_map_fore[-1].detach()
-        # self.threshold_map_back_save = threshold_map.detach()
-
-        # write_heat_map(error_map_fore[-1].detach().cpu().detach().numpy(), self.count_image, "./final_error" + str(video_num))
-        # write_heat_map(threshold_map_fore[-1].detach().cpu().detach().numpy(), self.count_image, "./final_thres"+ str(video_num))
-
-        # write_heat_map(error_map_back[-1].detach().cpu().detach().numpy(), self.count_image, "./final_error_back" + str(video_num))
-        # write_heat_map(threshold_map[-1].detach().cpu().detach().numpy(), self.count_image, "./final_thres_back" + str(video_num))
+        write_heat_map(error_map_back.detach().cpu().detach().numpy(), self.count_image, "./final_error_back" + str(video_num))
+        write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./final_thres_back" + str(video_num))
 
 
         # with torch.no_grad():

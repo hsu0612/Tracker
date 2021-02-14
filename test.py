@@ -24,7 +24,7 @@ GOT_data_list =  os.listdir(GOT_data_path)
 
 for index_2, i in enumerate(GOT_data_list):
     time1 = time.time()
-    # if index_2 < 3:
+    # if index_2 < 1:
     #     continue
     # if index_2 == 45:
     #     assert False
@@ -60,7 +60,7 @@ for index_2, i in enumerate(GOT_data_list):
             x, y, w, h = tracker.tracker_inference(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
             if index == 2:
                 break
-            #tracker.tracker_update(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
+            tracker.tracker_update(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
     
     print(index_2)
     print(time1 - time.time())
