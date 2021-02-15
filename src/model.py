@@ -155,8 +155,8 @@ class FCNet(nn.Module):
         channel_1 = 32
         channel_2 = 64
         channel_3 = 128
-        channel_4 = 256
-        channel_5 = 1024
+        channel_4 = 512
+        channel_5 = 32
         self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
         self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
         self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
