@@ -187,14 +187,15 @@ class FCAE_tracker():
         torch.backends.cudnn.deterministic = True
         self.device = device
         self.data_type = torch.float32
-        self.threshold_for_background = 0.1
-        self.threshold_for_foreground = 0.8
+        self.threshold_for_background = 0.05
+        self.threshold_for_foreground = 0.95
     def tracker_init(self, img, x, y, w, h, number_of_frame, video_num):
         # input data init
         train_transformation = transforms.Compose([
             transforms.ToTensor(),
             ])
-        #img = img.filter(ImageFilter.GaussianBlur(radius=3))
+        # gaussian filter (not useful)
+        img = img.filter(ImageFilter.GaussianBlur(radius=3))
         img = train_transformation(img)
         img = torch.unsqueeze(img, 0)
         img = img.to(dtype=self.data_type)
@@ -222,9 +223,8 @@ class FCAE_tracker():
             # opt init
             optimizer.zero_grad()
             pred, feature_map = self.model_background(search)
-            # loss
             background_diff = torch.abs(pred - search)
-            # (y ln(x) + (1-y) ln(1-x))
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # background_diff = -1*(search*torch.log(pred) + (1-search)*torch.log(1-pred))
             background_diff[:, :, 32:96, 32:96] = 0.0
             background_diff_loss = background_diff.mean()
@@ -235,20 +235,20 @@ class FCAE_tracker():
         
         # check search
         search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
-        # search_pil.save("./search" + str(self.count_image) + str(video_num) + ".jpg")
+        search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
         search_np = np.array(search_pil)
 
         # check pred
         with torch.no_grad():
             pred, feature_map = self.model_background(search)
         pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        # pred_pil.save("./pred_img_with_background" + str(self.count_image) + str(video_num) + ".jpg")
+        pred_pil.save("./pred_img_with_background_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
         # check error map
         error_map = torch.abs(pred - search)
         error_map = error_map.mean(axis = 0)
         error_map = error_map.mean(axis = 0)
-        # write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_background_" + str(video_num))
+        write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_background_" + str(video_num) + "_")
 
         # check threshold map
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
@@ -256,7 +256,7 @@ class FCAE_tracker():
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
         threshold_map_mask_center[32:96, 32:96] = threshold_map[32:96, 32:96]
         threshold_map = threshold_map_mask_center
-        # write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num))
+        write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num) + "_")
 
         # check mask
         mask = np.zeros((128, 128, 3))
@@ -266,7 +266,7 @@ class FCAE_tracker():
         search_with_mask = Image.fromarray(mask.astype("uint8"))
         search_with_mask = train_transformation(search_with_mask)
         search_with_mask = torchvision.transforms.ToPILImage()(search_with_mask.detach().cpu())
-        #search_with_mask.save("./mask_" + str(video_num) + ".jpg")
+        search_with_mask.save("./mask_" + str(video_num) + ".jpg")
 
         gaussian_map = g_kernel
         gaussian_map = torch.tensor(gaussian_map).to(self.device, dtype=self.data_type)
@@ -277,20 +277,21 @@ class FCAE_tracker():
         for i in range(0, 500, 1):
             optimizer.zero_grad()
             pred, feature_map = self.model_foreground(search)
-            # loss
-            reconstruction_diff = torch.abs(pred[:, :, 32:96, 32:96] - search[:, :, 32:96, 32:96])
+            reconstruction_diff = torch.abs(pred - search) * threshold_map.to(self.device, dtype=self.data_type)
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # reconstruction_diff = -1*(search[:, :, 32:96, 32:96]*torch.log(pred[:, :, 32:96, 32:96]) + (1-search[:, :, 32:96, 32:96])*torch.log(1-pred[:, :, 32:96, 32:96]))
             reconstruction_loss = reconstruction_diff.mean()
             error_map_fore = 1.0 - torch.abs(pred[:, :, 32:96, 32:96] - search[:, :, 32:96, 32:96])
             error_map_fore = error_map_fore.mean(axis = 0)
             error_map_fore = error_map_fore.mean(axis = 0)
             gaussian_error_loss = abs(error_map_fore - gaussian_map).mean()
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # gaussian_error_diff = -1*(gaussian_map*torch.log(error_map_fore) + (1-gaussian_map)*torch.log(1-error_map_fore))
             # gaussian_error_loss = gaussian_error_diff.mean()
             dx_search, dy_search =  gradient(search[:, :, 32:96, 32:96])
             dx_pred, dy_pred = gradient(pred[:, :, 32:96, 32:96])
             grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
-            loss = reconstruction_loss + gaussian_error_loss
+            loss = reconstruction_loss
             loss.backward()
             optimizer.step()
 
@@ -299,19 +300,19 @@ class FCAE_tracker():
         with torch.no_grad():
             pred, feature_map = self.model_foreground(search)
         
-        # pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        # pred_pil.save("./pred_img_with_foreground" + str(self.count_image) + str(video_num) + ".jpg")
+        pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        pred_pil.save("./pred_img_with_foreground_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
         # check error map
         error_map_fore = 1.0 - torch.abs(pred - search)
         error_map_fore = error_map_fore.mean(axis = 0)
         error_map_fore = error_map_fore.mean(axis = 0)
-        # write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num))
+        write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num) + "_")
 
         # check threshold map
         threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
         threshold_map_fore[threshold_map_fore!=0.0] = 1.0
-        # write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./threshold_foregroud" + str(video_num))
+        write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./threshold_foregroud" + str(video_num) + "_")
 
         # second stage
         # optimizer init
@@ -322,15 +323,17 @@ class FCAE_tracker():
         for i in range(0, 500, 1):
             optimizer_back.zero_grad()
             optimizer_fore.zero_grad()
-
+            # model pred
             pred_back, feature_map = self.model_background(search)
 
             background_diff = torch.abs(pred_back - search)
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # background_diff = -1*(search*torch.log(pred) + (1-search)*torch.log(1-pred))
             background_diff[:, :, 32:96, 32:96] = 0.0
             background_diff_loss = background_diff.mean()
 
             error_map_back = torch.abs(pred_back - search)
+            error_map_back[search == 0.0] = 0.0
             dx_b, dy_b = gradient(error_map_back)
             error_map_back = error_map_back.mean(axis = 0)
             error_map_back = error_map_back.mean(axis = 0)
@@ -344,25 +347,29 @@ class FCAE_tracker():
 
             pred_fore, feature_map_fore = self.model_foreground(search)
 
-            reconstruction_diff = torch.abs(pred_fore[:, :, 32:96, 32:96] - search[:, :, 32:96, 32:96])
+            reconstruction_diff = torch.abs(pred_fore - search) * threshold_map.to(self.device, dtype=self.data_type)
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # reconstruction_diff = -1*(search[:, :, 32:96, 32:96]*torch.log(pred[:, :, 32:96, 32:96]) + (1-search[:, :, 32:96, 32:96])*torch.log(1-pred[:, :, 32:96, 32:96]))
             reconstruction_loss = reconstruction_diff.mean()
 
             error_map_fore = 1.0 - torch.abs(pred_fore - search)
+            error_map_fore[search == 0.0] = 0.0
             dx, dy = gradient(error_map_fore)
             error_map_fore = error_map_fore.mean(axis = 0)
             error_map_fore = error_map_fore.mean(axis = 0)
-            gaussian_error_loss = abs(error_map_fore[32:96, 32:96] - gaussian_map).mean()
+            gaussian_error_diff = abs(error_map_fore[32:96, 32:96] - gaussian_map)
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # gaussian_error_diff = -1*(gaussian_map*torch.log(error_map_fore[32:96, 32:96]) + (1-gaussian_map)*torch.log(1-error_map_fore[32:96, 32:96]))
-            # gaussian_error_loss = gaussian_error_diff.mean()
+            gaussian_error_loss = gaussian_error_diff.mean()
 
             threshold_map_fore = torch.nn.functional.threshold(error_map_fore, self.threshold_for_foreground, 0.0, inplace=False)
             # i have no idea 
             # threshold_map_fore[threshold_map_fore>=self.threshold_for_foreground] = 1.0
 
-            consistency_loss = torch.abs((threshold_map - threshold_map_fore)).mean()
+            consistency_diff = torch.abs((threshold_map - threshold_map_fore)).mean()
+            # (y ln(x) + (1-y) ln(1-x)) (not useful)
             # consistency_diff = -1*(threshold_map*torch.log(threshold_map_fore) + (1-threshold_map)*torch.log(1-threshold_map_fore))
-            # consistency_loss = consistency_diff.mean()
+            consistency_loss = consistency_diff.mean()
 
             dx_c, dy_c = gradient(search)
             dx, dy, dx_c, dy_c, dx_b, dy_b = dx.mean(axis=0), dy.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0), dx_c.mean(axis=0), dy_c.mean(axis=0)
@@ -375,7 +382,7 @@ class FCAE_tracker():
             dx_pred, dy_pred = gradient(pred_fore[:, :, 32:96, 32:96])
             grad_loss = abs(dx_search - dx_pred).mean() + abs(dy_search - dy_pred).mean()
 
-            loss = background_diff_loss + 0.1*reconstruction_loss + 0.1*gaussian_error_loss + consistency_loss# + 0.1*grad_loss + 0.1*smooth_loss
+            loss = background_diff_loss + reconstruction_loss + consistency_loss
 
             loss.backward()
             optimizer_back.step()
@@ -387,12 +394,12 @@ class FCAE_tracker():
         self.threshold_map_save = threshold_map_fore.detach()
         self.threshold_map_back_save = threshold_map.detach()
 
-        # write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_error" + str(video_num))
-        # write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_thres" + str(video_num))
+        write_heat_map(error_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_error_fore_" + str(video_num) + "_")
+        write_heat_map(threshold_map_fore.detach().cpu().detach().numpy(), self.count_image, "./final_thres_fore_" + str(video_num) + "_")
 
 
-        # write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./final_error_back" + str(video_num))
-        # write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./final_thres_back" + str(video_num))
+        write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./final_error_back_" + str(video_num) + "_")
+        write_heat_map(threshold_map.detach().cpu().detach().numpy(), self.count_image, "./final_thres_back_" + str(video_num) + "_")
 
         # with torch.no_grad():
         #     pred, feature_map = self.model_foreground(search)
@@ -413,7 +420,8 @@ class FCAE_tracker():
         test_transformation = torchvision.transforms.Compose([
             torchvision.transforms.ToTensor(),
             ])
-        #img = img.filter(ImageFilter.GaussianBlur(radius=3))
+        # gaussian filter (not useful)
+        img = img.filter(ImageFilter.GaussianBlur(radius=3))
         img = test_transformation(img)
         img = torch.unsqueeze(img, 0)
         img = img.to(dtype=self.data_type)
@@ -422,23 +430,31 @@ class FCAE_tracker():
         grid = grid.to(dtype=self.data_type)
         search = torch.nn.functional.grid_sample(img, grid)
         search = search.to(self.device, dtype=self.data_type)
+
+        # check search
+        search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
+        search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        test = torch.ones(search.shape)
+        test = test.to(self.device, dtype=self.data_type)
         with torch.no_grad():
             pred, feature_map = self.model_foreground(search)
         with torch.no_grad():
-            pred_b, feature_map = self.model_background(search)
+            pred_b, feature_map_b = self.model_background(search)
         img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        img_pil.save("./pred_img" + str(self.count_image) + "_" + str(video_num) + ".jpg")
-        img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        img_pil.save("./pred_back_img" + str(self.count_image) + "_" + str(video_num) + ".jpg")
+        img_pil.save("./pred_fore_img_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        img_pil = torchvision.transforms.ToPILImage()(pred_b[0].detach().cpu())
+        img_pil.save("./pred_back_img_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
         # error map
         error_map = 1.0 - torch.abs(pred - search)
         error_map = error_map.mean(axis = 0)
         error_map = error_map.mean(axis = 0)
+        feature_map = feature_map.mean(axis = 0)
+        feature_map = feature_map.mean(axis = 0)
         # maybe has error
         error_map = np.where(search.detach().cpu().mean(axis = 1)[0, :, :] == 0, 0.0, error_map.detach().cpu())
-        write_heat_map(error_map, self.count_image, "./error_map" + str(video_num))
+        write_heat_map(error_map, self.count_image, "./error_map_fore_" + str(video_num) + "_")
         threshold_map = np.where(error_map > self.threshold_for_foreground, 1.0, 0.0)
-        write_heat_map(threshold_map, self.count_image, "./threshold_map" + str(video_num))
+        write_heat_map(threshold_map, self.count_image, "./threshold_map_fore_" + str(video_num) + "_")
 
         # error map
         error_map_b = torch.abs(pred_b - search)
@@ -446,9 +462,9 @@ class FCAE_tracker():
         error_map_b = error_map_b.mean(axis = 0)
         # maybe has error
         error_map_b = np.where(search.detach().cpu().mean(axis = 1)[0, :, :] == 0, 0.0, error_map_b.detach().cpu())
-        write_heat_map(error_map_b, self.count_image, "./error_map_b" + str(video_num))
+        write_heat_map(error_map_b, self.count_image, "./error_map_back" + str(video_num) + "_")
         threshold_map_b = np.where(error_map_b > self.threshold_for_background, 1.0, 0.0)
-        write_heat_map(threshold_map_b, self.count_image, "./threshold_map_b" + str(video_num))
+        write_heat_map(threshold_map_b, self.count_image, "./threshold_map_back_" + str(video_num) + "_")
         
         # Connected component
         threshold_map = threshold_map.astype(np.uint8)
@@ -489,15 +505,15 @@ class FCAE_tracker():
         search = torch.nn.functional.grid_sample(img, grid)
         self.memory[self.count_image] = search[0]
 
-        write_tracking_result(img, self.x, self.y, self.count_image, self.w, self.h, "./" + str(video_num))
+        write_tracking_result(img, self.x, self.y, self.count_image, self.w, self.h, "./" + str(video_num) + "_")
         self.count_image+=1
 
         return self.x, self.y, self.w, self.h
     def tracker_update(self, img, realx, realy, realw, realh, video_count, number_of_frame, video_num):
         # model init
-        #self.model_background = FCNet().to(self.device, dtype=self.data_type)
+        self.model_background = FCNet().to(self.device, dtype=self.data_type)
         self.model_background.train()
-        #self.model_foreground = FCNet().to(self.device, dtype=self.data_type)
+        self.model_foreground = FCNet().to(self.device, dtype=self.data_type)
         self.model_foreground.train()
         # optimizer init
         optimizer = optim.Adam(self.model_background.parameters(), lr = 1e-4)
@@ -508,24 +524,19 @@ class FCAE_tracker():
         for i in range(0, 500, 1):
             optimizer.zero_grad()
             pred, feature_map = self.model_background(self.training_set)
-            # loss
             background_diff = torch.abs(pred - self.training_set)
             background_diff[:, :, 32:96, 32:96] = 0.0
             background_diff_loss = background_diff.mean()
 
             loss = background_diff_loss
-            # check loss
-            # if i % 100 == 0:
-            #     print("back")
-            #     print(smooth_loss)
             loss.backward()
             optimizer.step()
 
         # check pred
         with torch.no_grad():
             pred, feature_map = self.model_background(self.training_set)
-        # img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        # img_pil.save("./pred_img_with_background" + str(self.count_image) + ".jpg")
+        img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        img_pil.save("./pred_img_with_background_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
         # check error map
         error_map = torch.abs(pred - self.training_set)
