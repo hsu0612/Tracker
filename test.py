@@ -24,9 +24,9 @@ GOT_data_list =  os.listdir(GOT_data_path)
 
 for index_2, i in enumerate(GOT_data_list):
     time1 = time.time()
-    if index_2 < 4:
+    if index_2 < 2:
         continue
-    if index_2 == 45:
+    if index_2 == 180:
         assert False
     # Path setting
     img_path = "D:/GOT/test/" + i + "/"
@@ -45,7 +45,7 @@ for index_2, i in enumerate(GOT_data_list):
     # x = int(float(rect[0]))
     # y = int(float(rect[1]))
     # w, h = int(float(rect[2])), int(float(rect[3]))
-    tracker = Tracker.FCAE_tracker('cuda')
+    tracker = Tracker.FCAE_tracker()
 
     for index, i in enumerate(img_list):
         img = Image.open(img_path+"/"+i)
@@ -59,12 +59,12 @@ for index_2, i in enumerate(GOT_data_list):
             real_y = int(float(rect[1]))
             real_w, real_h = int(float(rect[2])), int(float(rect[3]))
             tracker.tracker_init(img, real_x, real_y, real_w, real_h, 100, index_2)
-            #time1 = time.time()
         else:
             x, y, w, h = tracker.tracker_inference(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
-            assert False
-            if index == 5:
-                assert False
+            print(time1 - time.time())
+            if index == 50:
+                break
+            # if index % 3 == 0 or index < 5:
             tracker.tracker_update(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
     
     print(index_2)

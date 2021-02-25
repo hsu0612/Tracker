@@ -155,8 +155,8 @@ class FCNet(nn.Module):
         channel_1 = 32
         channel_2 = 64
         channel_3 = 128
-        channel_4 = 512
-        channel_5 = 32
+        channel_4 = 256
+        channel_5 = 16
         self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
         self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
         self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
@@ -167,6 +167,56 @@ class FCNet(nn.Module):
         self.decoder3 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
         self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
         self.decoder5 = DeConvBlock(channel_1, 3, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.conv = nn.Conv2d(3, channel_1, kernel_size=3, stride=1, padding=1)
+        self.maxpool = nn.MaxPool2d((2, 2), stride = 2)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+        
+    def forward(self, x): 
+        feature_map = self.conv(x)
+        feature_map = self.relu(feature_map)
+        output = self.maxpool(feature_map)
+        #print(output.shape)
+        output = self.encoder2(output)
+        #print(output.shape)
+        output = self.encoder3(output)
+        #print(output.shape)
+        output = self.encoder4(output)
+        #print(output.shape)
+        output = self.encoder5(output)
+        #print(feature_map.shape)
+        #output = self.reparameterize(feature_map[:, :8, :, :], feature_map[:, 8:, :, :])
+        output = self.decoder1(output)
+        output = self.relu(output)
+        output = self.decoder2(output)
+        output = self.relu(output)
+        output = self.decoder3(output)
+        output = self.relu(output)
+        output = self.decoder4(output)
+        output = self.relu(output)
+        output = self.decoder5(output)
+        output = self.sigmoid(output)
+        return output, feature_map
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        # Necessary
+        super().__init__()
+        channel_1 = 32
+        channel_2 = 64
+        channel_3 = 128
+        channel_4 = 256
+        channel_5 = 512
+        self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
+        self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
+        self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
+        self.encoder4 = ConvBlock(channel_3, channel_4, kernel_size=3, stride=1, padding=1)
+        self.encoder5 = ConvBlock(channel_4, channel_5, kernel_size=3, stride=1, padding=1)
+        self.decoder1 = DeConvBlock(channel_5, channel_4, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder2 = DeConvBlock(channel_4, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder3 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder5 = DeConvBlock(channel_1, 1, kernel_size=3, stride=1, padding=1, dilation=1)
         self.conv = nn.Conv2d(3, channel_1, kernel_size=3, stride=1, padding=1)
         self.maxpool = nn.MaxPool2d((2, 2), stride = 2)
         self.relu = nn.ReLU()
