@@ -42,111 +42,6 @@ class DeConvBlock(nn.Module):
         x = self.conv(x)
         #x = self.bn(x)
         return x
-class Net(nn.Module):
-    def __init__(self):
-        # Necessary
-        super().__init__()
-        channel_1 = 32
-        channel_2 = 64
-        channel_3 = 4
-        self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
-        self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
-        self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Flatten()
-        self.decoder1 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder2 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder3 = DeConvBlock(channel_1, 3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid() 
-    def forward(self, x): 
-        output = self.encoder1(x)
-        output = self.encoder2(output)
-        output = self.encoder3(output)
-        temp_1 = output.shape[1]
-        temp_2 = output.shape[2]
-        temp_3 = output.shape[3]
-        output = self.fc1(output)
-        output_fc1 = output
-        output = output.reshape(-1, temp_1, temp_2, temp_3)
-        output = self.decoder1(output)
-        output = self.relu(output)
-        output = self.decoder2(output)
-        output = self.relu(output)
-        output = self.decoder3(output)
-        output = self.sigmoid(output)
-        return output, output_fc1
-class VAENet(nn.Module):
-    def __init__(self):
-        # necessary
-        super().__init__()
-        channel_1 = 32
-        channel_2 = 64
-        channel_3 = 4
-        self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
-        self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
-        self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Flatten()
-        # VAE
-        self.fc22 = nn.Linear(1024, 32)
-        self.fc23 = nn.Linear(1024, 32)
-        self.fc3 = nn.Linear(32, 1024)
-        self.decoder1 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder2 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1)
-        self.decoder3 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1)
-        self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder5 = DeConvBlock(channel_1, 3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid() 
-        self.bn = nn.BatchNorm2d(channel_2)
-    # VAE
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-    def forward(self, x): 
-        output = self.encoder1(x)
-        output = self.encoder2(output)
-        output = self.encoder3(output)
-        temp_1 = output.shape[1]
-        temp_2 = output.shape[2]
-        temp_3 = output.shape[3]
-        output = self.fc1(output)
-        output_fc1 = output
-        # mean, var
-        mu = self.fc22(output)
-        logvar = self.fc23(output)
-        output = self.reparameterize(mu, logvar)
-        output = self.fc3(output)
-        output = output.reshape(-1, temp_1, temp_2, temp_3)
-        output = self.decoder1(output)
-        output = self.relu(output)
-        output = self.decoder2(output)
-        output = self.bn(output)
-        output = self.relu(output)
-        output = self.decoder3(output)
-        output = self.bn(output)
-        output = self.relu(output)
-        output = self.decoder4(output)
-        output = self.relu(output)
-        output = self.decoder5(output)
-        output = self.sigmoid(output)
-        # inference
-        inference = self.fc3(mu)
-        inference = inference.reshape(-1, temp_1, temp_2, temp_3)
-        inference = self.decoder1(inference)
-        inference = self.relu(inference)
-        inference = self.decoder2(inference)
-        inference = self.bn(inference)
-        inference = self.relu(inference)
-        inference = self.decoder3(inference)
-        inference = self.bn(inference)
-        inference = self.relu(inference)
-        inference = self.decoder4(inference)
-        inference = self.relu(inference)
-        inference = self.decoder5(inference)
-        inference = self.sigmoid(inference)
-
-        return output, mu, logvar, inference, output_fc1
 
 class FCNet(nn.Module):
     def __init__(self):
@@ -213,10 +108,13 @@ class Discriminator(nn.Module):
         self.encoder4 = ConvBlock(channel_3, channel_4, kernel_size=3, stride=1, padding=1)
         self.encoder5 = ConvBlock(channel_4, channel_5, kernel_size=3, stride=1, padding=1)
         self.decoder1 = DeConvBlock(channel_5, channel_4, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder2 = DeConvBlock(channel_4, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder3 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder5 = DeConvBlock(channel_1, 1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder21 = DeConvBlock(channel_4*2, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder22 = nn.Conv2d(channel_3, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder31 = DeConvBlock(channel_3*2, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder32 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder41 = DeConvBlock(channel_2*2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder42 = nn.Conv2d(channel_1, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder5 = DeConvBlock(channel_1*2, 1, kernel_size=3, stride=1, padding=1, dilation=1)
         self.conv = nn.Conv2d(3, channel_1, kernel_size=3, stride=1, padding=1)
         self.maxpool = nn.MaxPool2d((2, 2), stride = 2)
         self.relu = nn.ReLU()
@@ -225,25 +123,30 @@ class Discriminator(nn.Module):
     def forward(self, x): 
         feature_map = self.conv(x)
         feature_map = self.relu(feature_map)
-        output = self.maxpool(feature_map)
+        feature_map_1 = self.maxpool(feature_map)
         #print(output.shape)
-        output = self.encoder2(output)
+        feature_map_2 = self.encoder2(feature_map_1)
         #print(output.shape)
-        output = self.encoder3(output)
+        feature_map_3 = self.encoder3(feature_map_2)
         #print(output.shape)
-        output = self.encoder4(output)
+        feature_map_4 = self.encoder4(feature_map_3)
         #print(output.shape)
-        output = self.encoder5(output)
+        feature_map_5 = self.encoder5(feature_map_4)
         #print(feature_map.shape)
         #output = self.reparameterize(feature_map[:, :8, :, :], feature_map[:, 8:, :, :])
-        output = self.decoder1(output)
+        output = self.decoder1(feature_map_5)
         output = self.relu(output)
-        output = self.decoder2(output)
+        output = self.decoder21(torch.cat((feature_map_4, output), 1))
         output = self.relu(output)
-        output = self.decoder3(output)
+        output = self.decoder22(output)
         output = self.relu(output)
-        output = self.decoder4(output)
+        output = self.decoder31(torch.cat((feature_map_3, output), 1))
         output = self.relu(output)
-        output = self.decoder5(output)
+        output = self.decoder32(output)
+        output = self.relu(output)
+        output = self.decoder41(torch.cat((feature_map_2, output), 1))
+        output = self.decoder42(output)
+        output = self.relu(output)
+        output = self.decoder5(torch.cat((feature_map_1, output), 1))
         output = self.sigmoid(output)
         return output, feature_map

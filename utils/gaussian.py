@@ -14,9 +14,9 @@ if __name__ == "__main__":
     # g_kernel2[32:96, 32:96] = g_kernel[32:96, 32:96]
     # g_kernel = g_kernel2
     print(g_kernel)
-    g_kernel = g_kernel*255
-    g_kernel = g_kernel.astype(np.uint8)
-    im_color = cv2.applyColorMap(g_kernel, cv2.COLORMAP_JET)
+    # g_kernel = g_kernel*255
+    # g_kernel = g_kernel.astype(np.uint8)
+    # im_color = cv2.applyColorMap(g_kernel, cv2.COLORMAP_JET)
     # cv2.imshow("test", im_color)
     # cv2.waitKey(10000)
     # cv2.destroyAllWindows()
