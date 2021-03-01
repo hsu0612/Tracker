@@ -100,17 +100,17 @@ class Discriminator(nn.Module):
         channel_1 = 32
         channel_2 = 64
         channel_3 = 128
-        channel_4 = 256
-        channel_5 = 512
+        # channel_4 = 256
+        # channel_5 = 512
         self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
         self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
         self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
-        self.encoder4 = ConvBlock(channel_3, channel_4, kernel_size=3, stride=1, padding=1)
-        self.encoder5 = ConvBlock(channel_4, channel_5, kernel_size=3, stride=1, padding=1)
-        self.decoder1 = DeConvBlock(channel_5, channel_4, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder21 = DeConvBlock(channel_4*2, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder22 = nn.Conv2d(channel_3, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder31 = DeConvBlock(channel_3*2, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
+        # self.encoder4 = ConvBlock(channel_3, channel_4, kernel_size=3, stride=1, padding=1)
+        # self.encoder5 = ConvBlock(channel_4, channel_5, kernel_size=3, stride=1, padding=1)
+        # self.decoder1 = DeConvBlock(channel_5, channel_4, kernel_size=3, stride=1, padding=1, dilation=1)
+        # self.decoder21 = DeConvBlock(channel_4*2, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
+        # self.decoder22 = nn.Conv2d(channel_3, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder31 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
         self.decoder32 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
         self.decoder41 = DeConvBlock(channel_2*2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
         self.decoder42 = nn.Conv2d(channel_1, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
@@ -129,18 +129,18 @@ class Discriminator(nn.Module):
         #print(output.shape)
         feature_map_3 = self.encoder3(feature_map_2)
         #print(output.shape)
-        feature_map_4 = self.encoder4(feature_map_3)
+        # feature_map_4 = self.encoder4(feature_map_3)
         #print(output.shape)
-        feature_map_5 = self.encoder5(feature_map_4)
+        # feature_map_5 = self.encoder5(feature_map_4)
         #print(feature_map.shape)
         #output = self.reparameterize(feature_map[:, :8, :, :], feature_map[:, 8:, :, :])
-        output = self.decoder1(feature_map_5)
-        output = self.relu(output)
-        output = self.decoder21(torch.cat((feature_map_4, output), 1))
-        output = self.relu(output)
-        output = self.decoder22(output)
-        output = self.relu(output)
-        output = self.decoder31(torch.cat((feature_map_3, output), 1))
+        # output = self.decoder1(feature_map_5)
+        # output = self.relu(output)
+        # output = self.decoder21(torch.cat((feature_map_4, output), 1))
+        # output = self.relu(output)
+        # output = self.decoder22(output)
+        # output = self.relu(output)
+        output = self.decoder31(feature_map_3)
         output = self.relu(output)
         output = self.decoder32(output)
         output = self.relu(output)
@@ -149,4 +149,4 @@ class Discriminator(nn.Module):
         output = self.relu(output)
         output = self.decoder5(torch.cat((feature_map_1, output), 1))
         output = self.sigmoid(output)
-        return output, feature_map
+        return output, feature_map_3

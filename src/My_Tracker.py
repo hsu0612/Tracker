@@ -68,7 +68,7 @@ class FCAE_tracker():
         # count image
         self.count_image = 0
         # train
-        for i in range(0, 500, 1):
+        for i in range(0, 1, 1):
             # optimizer init
             optimizer.zero_grad()
             pred, feature_map = self.model_background(image_batch)
@@ -90,8 +90,8 @@ class FCAE_tracker():
         #         search_pil.save("./test" + str(index1*4+index2) +".jpg")
 
         # check search
-        search_pil = torchvision.transforms.ToPILImage()(image_batch[self.check_num].detach().cpu())
-        search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        # search_pil = torchvision.transforms.ToPILImage()(image_batch[self.check_num].detach().cpu())
+        # search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
         # check pred
         with torch.no_grad():
@@ -104,32 +104,36 @@ class FCAE_tracker():
         error_map = error_map.mean(axis = 1)
         # function.write_heat_map(error_map[self.check_num].detach().cpu().numpy(), self.count_image, "./error_background_" + str(video_num) + "_")
 
+        gaussian_map = torch.from_numpy(g_kernel)
+        gaussian_map = gaussian_map.to(self.device, dtype=self.data_type)
+        gaussian_map = torch.unsqueeze(gaussian_map, 0)
+
         # check threshold map
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
         threshold_map[threshold_map!=0.0] = 1.0
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
         for index1, i in enumerate(range(-64, 64, 32)):
             for index2, j in enumerate(range(-64, 64, 32)):
-                threshold_map_mask_center[index1*4+index2, 64+j:128+j, 64+i:128+i] = threshold_map[index1*4+index2, 64+j:128+j, 64+i:128+i]
+                threshold_map_mask_center[index1*4+index2, 64+j:128+j, 64+i:128+i] = gaussian_map# * threshold_map[index1*4+index2, 64+j:128+j, 64+i:128+i]
         threshold_map = threshold_map_mask_center
         threshold_map = torch.unsqueeze(threshold_map, 1)
-        g_filter = torch.from_numpy(g_kernel)
-        g_filter = g_filter.to(dtype=self.data_type)
-        g_filter = torch.unsqueeze(g_filter, 0)
-        g_filter = torch.unsqueeze(g_filter, 0)
-        threshold_map = F.conv2d(threshold_map, g_filter, padding=3)
+        # g_filter = torch.from_numpy(g_kernel)
+        # g_filter = g_filter.to(dtype=self.data_type)
+        # g_filter = torch.unsqueeze(g_filter, 0)
+        # g_filter = torch.unsqueeze(g_filter, 0)
+        # threshold_map = F.conv2d(threshold_map, g_filter, padding=3)
         threshold_map[threshold_map > 1.0] = 1.0
         # function.write_heat_map(threshold_map[self.check_num][0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num) + "_")
 
         # check mask
-        mask = np.zeros((192, 192, 3))
-        search_np = np.array(search_pil)
-        for i in range(0, 3, 1):
-            mask[:, :, i] = np.where(threshold_map[self.check_num][0].detach().cpu().detach().numpy() == 1.0, search_np[:, :, i], 0.0)
-        search_with_mask = Image.fromarray(mask.astype("uint8"))
-        search_with_mask = data_transformation(search_with_mask)
-        search_with_mask = torchvision.transforms.ToPILImage()(search_with_mask.detach().cpu())
-        search_with_mask.save("./mask_" + str(video_num) + ".jpg")
+        # mask = np.zeros((192, 192, 3))
+        # search_np = np.array(search_pil)
+        # for i in range(0, 3, 1):
+        #     mask[:, :, i] = np.where(threshold_map[self.check_num][0].detach().cpu().detach().numpy() == 1.0, search_np[:, :, i], 0.0)
+        # search_with_mask = Image.fromarray(mask.astype("uint8"))
+        # search_with_mask = data_transformation(search_with_mask)
+        # search_with_mask = torchvision.transforms.ToPILImage()(search_with_mask.detach().cpu())
+        # search_with_mask.save("./mask_" + str(video_num) + ".jpg")
 
         # foreground
         # optimizer init
@@ -150,13 +154,13 @@ class FCAE_tracker():
         with torch.no_grad():
             pred, feature_map = self.model_foreground(image_batch)
         pred_pil = torchvision.transforms.ToPILImage()(pred[self.check_num].detach().cpu())
-        pred_pil.save("./pred_img_with_foreground_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        # pred_pil.save("./pred_img_with_foreground_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
-        # # check error map
-        # error_map_fore = 1.0 - torch.abs(pred - image_batch)
-        # # error_map_fore = error_map_fore.mean(axis = 0)
-        # # error_map_fore = error_map_fore.mean(axis = 0)
-        # error_map_fore = error_map_fore.mean(axis = 1)
+        # check error map
+        error_map_fore = pred
+        # error_map_fore = error_map_fore.mean(axis = 0)
+        # error_map_fore = error_map_fore.mean(axis = 0)
+        error_map_fore = error_map_fore.mean(axis = 1)
         # function.write_heat_map(error_map_fore[self.check_num].detach().cpu().detach().numpy(), self.count_image, "./error_foregroud" + str(video_num) + "_")
 
         # # check threshold map
@@ -301,21 +305,21 @@ class FCAE_tracker():
 
         # check search
         search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
-        search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        # search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
         # check pred
         img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        img_pil.save("./pred_fore_img_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        # img_pil.save("./pred_fore_img_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
         
         # error map
         error_map = pred
         error_map = error_map.mean(axis = 0)
         error_map = error_map.mean(axis = 0)
-        function.write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_map_fore_" + str(video_num) + "_")
+        # function.write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_map_fore_" + str(video_num) + "_")
         
         # threshold map
         threshold_map = np.where(error_map.detach().cpu().detach().numpy() > 0.5, 1.0, 0.0)
-        function.write_heat_map(threshold_map, self.count_image, "./threshold_map_fore_" + str(video_num) + "_")
+        # function.write_heat_map(threshold_map, self.count_image, "./threshold_map_fore_" + str(video_num) + "_")
         
         # Connected component
         # get center
@@ -368,7 +372,7 @@ class FCAE_tracker():
         optimizer = optim.Adam(self.model_background.parameters(), lr = 1e-4)
 
         # train
-        for i in range(0, 500, 1):
+        for i in range(0, 1, 1):
             # opt init
             optimizer.zero_grad()
             pred, feature_map = self.model_background(self.training_set)
@@ -387,12 +391,16 @@ class FCAE_tracker():
         with torch.no_grad():
             pred, feature_map = self.model_background(self.training_set)
         pred_pil = torchvision.transforms.ToPILImage()(pred[self.check_num].detach().cpu())
-        pred_pil.save("./pred_img_with_background_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
+        # pred_pil.save("./pred_img_with_background_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
         # check error map
         error_map = torch.abs(pred - self.training_set)
         error_map = error_map.mean(axis = 1)
-        function.write_heat_map(error_map[self.check_num].detach().cpu().detach().numpy(), self.count_image, "./error_background_" + str(video_num) + "_")
+        # function.write_heat_map(error_map[self.check_num].detach().cpu().detach().numpy(), self.count_image, "./error_background_" + str(video_num) + "_")
+
+        gaussian_map = torch.from_numpy(g_kernel)
+        gaussian_map = gaussian_map.to(self.device, dtype=self.data_type)
+        gaussian_map = torch.unsqueeze(gaussian_map, 0)
 
         # check threshold map
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
@@ -400,17 +408,17 @@ class FCAE_tracker():
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
         for index1, i in enumerate(range(-64, 64, 32)):
             for index2, j in enumerate(range(-64, 64, 32)):
-                threshold_map_mask_center[index1*4+index2, 64+j:128+j, 64+i:128+i] = threshold_map[index1*4+index2, 64+j:128+j, 64+i:128+i]
-                # threshold_map_mask_center[index1*4+index2+16, 64+j:128+j, 64+i:128+i] = threshold_map[index1*4+index2+16, 64+j:128+j, 64+i:128+i]
+                threshold_map_mask_center[index1*4+index2, 64+j:128+j, 64+i:128+i] = gaussian_map#  *threshold_map[index1*4+index2, 64+j:128+j, 64+i:128+i]
+                # threshold_map_mask_center[index1*4+index2+16, 64+j:128+j, 64+i:128+i] = gaussian_map# *threshold_map[index1*4+index2+16, 64+j:128+j, 64+i:128+i]
         threshold_map = threshold_map_mask_center
         threshold_map = torch.unsqueeze(threshold_map, 1)
-        g_filter = torch.from_numpy(g_kernel)
-        g_filter = g_filter.to(dtype=self.data_type)
-        g_filter = torch.unsqueeze(g_filter, 0)
-        g_filter = torch.unsqueeze(g_filter, 0)
-        threshold_map = F.conv2d(threshold_map, g_filter, padding=3)
-        threshold_map[threshold_map > 1.0] = 1.0
-        function.write_heat_map(threshold_map[self.check_num][0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num) + "_")
+        # g_filter = torch.from_numpy(g_kernel)
+        # g_filter = g_filter.to(dtype=self.data_type)
+        # g_filter = torch.unsqueeze(g_filter, 0)
+        # g_filter = torch.unsqueeze(g_filter, 0)
+        # threshold_map = F.conv2d(threshold_map, g_filter, padding=3)
+        # threshold_map[threshold_map > 1.0] = 1.0
+        # function.write_heat_map(threshold_map[self.check_num][0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num) + "_")
 
         # foreground
         # optimizer init
@@ -426,125 +434,3 @@ class FCAE_tracker():
             loss.backward()
             optimizer.step()
         print("foreground finish !!!")
-    def tracker_train_with_segmentation(self, img, x, y, w, h, video_count, number_of_frame, video_num):
-        # model init
-        self.model_background = FCNet().to(self.device, dtype=self.data_type)
-        self.model_background.train()
-
-        # background
-        # optimizer init
-        optimizer = optim.Adam(self.model_background.parameters(), lr = 1e-4)
-        # image batch
-        image_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 192, h, 192, self.data_type)
-        # memory
-        self.memory = torch.zeros(number_of_frame, 4*4, 3, 192, 192)
-        self.memory[0] = image_batch
-        image_batch = image_batch.to(self.device, dtype=self.data_type)
-        # count image
-        self.count_image = 0
-        # train
-        for i in range(0, 500, 1):
-            # optimizer init
-            optimizer.zero_grad()
-            pred, feature_map = self.model_background(image_batch)
-            background_diff = torch.abs(pred - image_batch)
-            for index1, i in enumerate(range(-64, 64, 32)):
-                for index2, j in enumerate(range(-64, 64, 32)):
-                    background_diff[index1*4+index2, :, 64+j:128+j, 64+i:128+i] = 0.0
-            background_diff_loss = background_diff.mean()
-            loss = background_diff_loss
-            loss.backward()
-            optimizer.step()
-        print("background finish !!!")
-    def tracker_train_with_discreminator(self, img, x, y, w, h, video_count, number_of_frame, video_num):
-        # input data init
-        data_transformation = torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            ])
-        img = data_transformation(img)
-        img = torch.unsqueeze(img, 0)
-        img = img.to(dtype=self.data_type)
-
-        # set model
-        self.model_foreground = self.model_foreground.to(self.device, dtype=self.data_type)
-        self.model_foreground.eval()
-
-        # Get search grid
-        grid = function.get_grid(img.shape[3], img.shape[2], self.x + int(self.w/2), self.y + int(self.h/2), int(3*self.w), int(3*self.h), 192, 192)
-        grid = grid.to(dtype=self.data_type)
-        search = torch.nn.functional.grid_sample(img, grid)
-        search = search.to(self.device, dtype=self.data_type)
-
-        # inference
-        with torch.no_grad():
-            pred, feature_map = self.model_foreground(search)
-
-        # check search
-        search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
-        search_pil.save("./search_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
-
-        # check pred
-        img_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        img_pil.save("./pred_fore_img_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
-        
-        # error map
-        error_map = pred
-        error_map = error_map.mean(axis = 0)
-        error_map = error_map.mean(axis = 0)
-        function.write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_map_fore_" + str(video_num) + "_")
-        
-        # threshold map
-        threshold_map = np.where(error_map.detach().cpu().detach().numpy() > 0.5, 1.0, 0.0)
-        function.write_heat_map(threshold_map, self.count_image, "./threshold_map_fore_" + str(video_num) + "_")
-        
-        # Connected component
-        # get center
-        threshold_map = threshold_map.astype(np.uint8)
-        nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
-        lblareas = stats[1:, cv2.CC_STAT_AREA]
-        pred_center_x, pred_center_y = centroids[np.argmax(np.array(lblareas)) + 1]
-        new_center_x = (pred_center_x*3*self.w/192) + int(self.x - self.w)
-        new_center_y = (pred_center_y*3*self.h/192) + int(self.y - self.h)
-        # get w, h
-        pred_w, pred_h = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_WIDTH], stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_HEIGHT]
-        new_w, new_h = (pred_w*3*self.w/192), (pred_h*3*self.h/192)
-        # # scale list
-        # factor_list = np.array([1.0, 0.98, 1.02, 0.98*0.98, 1.02*1.02])
-        # scale_list = np.array(np.meshgrid(factor_list, factor_list))
-        # scale_list = scale_list.T.reshape(25, 2)
-        # # confidence score
-        # confidence_score = np.zeros(25)
-        # for index, scale in enumerate(scale_list):
-        #     # Get search grid
-        #     grid = function.get_grid(img.shape[3], img.shape[2], new_center_x, new_center_y, int(self.w*scale[0]), int(self.h*scale[1]), 64, 64)
-        #     grid = grid.to(dtype=self.data_type)
-        #     search = torch.nn.functional.grid_sample(img, grid)
-        #     search = search.to(self.device, dtype=self.data_type)
-        #     # inference
-        #     with torch.no_grad():
-        #         pred, feature_map = self.model_foreground(search)
-        #     # error map
-        #     error_map = pred
-        #     confidence_score[index] = error_map.detach().cpu().detach().numpy().sum()# - self.error_reference
-        # # get w, h
-        # abs_confidence_score = abs(confidence_score)
-        # max_index = np.argmax(abs_confidence_score)
-        # best_scale = scale_list[max_index]
-        # new_w, new_h = (best_scale[0] * self.w), (best_scale[1] * self.h)
-        self.w = int(new_w)
-        self.h = int(new_h)
-        # get x, y 
-        self.x = int(new_center_x) - int(self.w/2)
-        self.y = int(new_center_y) - int(self.h/2)
-        #self.error_reference = confidence_score[max_index] + self.error_reference
-
-        # image_batch
-        image_batch = function.get_image_batch_with_translate_augmentation(img, 4, self.x, self.y, self.w, 192, self.h, 192, self.data_type)
-        # memory
-        self.memory[self.count_image] = image_batch
-
-        function.write_tracking_result(img.detach().cpu().numpy(), self.x, self.y, self.count_image, self.w, self.h, "./" + str(video_num) + "_")
-
-        self.count_image+=1
-
-        return self.x, self.y, self.w, self.h

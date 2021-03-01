@@ -48,20 +48,24 @@ def get_image_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w
 def get_obj_x_y_w_h(threshold_map, x, y, w, h, img, device, data_type, model_foreground):
     nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
     lblareas = stats[1:, cv2.CC_STAT_AREA]
+    center_list = []
     left_list = []
     top_list = []
     right_list = []
     bottom_list = []
     for index, i in enumerate(lblareas):
-        if i > 100:
+        if i > 0:
+            center_list.append(centroids[index + 1])
             left_list.append(stats[index + 1, cv2.CC_STAT_LEFT])
             top_list.append(stats[index + 1, cv2.CC_STAT_TOP])
             right_list.append(stats[index + 1, cv2.CC_STAT_LEFT] + stats[index + 1, cv2.CC_STAT_WIDTH])
             bottom_list.append(stats[index + 1, cv2.CC_STAT_TOP] + stats[index + 1, cv2.CC_STAT_HEIGHT])
-    # pred_center_x, pred_center_y = np.array(center_list[0]).sum() / np.array(center_list[0]).mean(), np.array(center_list[1]).sum() / np.array(center_list[1]).mean()
+    pred_center_x = np.array(center_list)[:, 0].sum() / len(center_list)
+    pred_center_y = np.array(center_list)[:, 1].sum() / len(center_list)
     pred_x, pred_y = np.array(left_list).min(), np.array(top_list).min()
-    new_x = (pred_x*3*w/192) + (x - w)
-    new_y = (pred_y*3*h/192) + (y - h)
+    new_center_x, new_center_y = (pred_center_x*3*w/192) + (x - w), (pred_center_y*3*h/192) + (y - h)
+    # new_x = (pred_x*3*w/192) + (x - w)
+    # new_y = (pred_y*3*h/192) + (y - h)
     # get w, h
     # pred_w, pred_h = np.array(right_list).max() - pred_x, np.array(bottom_list).max() - pred_y
     # new_w, new_h = (pred_w*3*w/192), (pred_h*3*h/192)
@@ -73,7 +77,7 @@ def get_obj_x_y_w_h(threshold_map, x, y, w, h, img, device, data_type, model_for
     confidence_score = np.zeros(25)
     for index, scale in enumerate(scale_list):
         # Get search grid
-        grid = get_grid(img.shape[3], img.shape[2], new_x + w/2, new_y + h/2, int(w*scale[0]), int(h*scale[1]), 64, 64)
+        grid = get_grid(img.shape[3], img.shape[2], new_center_x, new_center_y, int(w*scale[0]), int(h*scale[1]), 64, 64)
         grid = grid.to(dtype=data_type)
         search = torch.nn.functional.grid_sample(img, grid)
         search = search.to(device, dtype=data_type)
@@ -91,8 +95,8 @@ def get_obj_x_y_w_h(threshold_map, x, y, w, h, img, device, data_type, model_for
     w = int(new_w)
     h = int(new_h)
     # get x, y 
-    x = int(new_x)
-    y = int(new_y)
+    x = int(new_center_x) - int(w/2)
+    y = int(new_center_y) - int(h/2)
     return x, y, w, h
 # check function
 # in: numpy(float), out: write image by opencv
