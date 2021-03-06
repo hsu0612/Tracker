@@ -38,66 +38,61 @@ def get_image_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w
     for index1, i in enumerate(range(-1*x_range, x_range, x_stride)):
         for index2, j in enumerate(range(-1*y_range, y_range, y_stride)):
             # get the cropped img
-            grid = get_grid(img.shape[3], img.shape[2], x + (w/2) + (-1*i*2*w/grid_w), y + (h/2) + (-1*j*2*h/grid_h), (3*w), (3*h), grid_w, grid_h)
+            grid = get_grid(img.shape[3], img.shape[2], x + (w/2) + (-1*i*w/grid_w), y + (h/2) + (-1*j*h/grid_h), (2*w), (2*h), grid_w, grid_h)
             grid = grid.to(dtype=data_type)
             search = torch.nn.functional.grid_sample(img, grid, mode="nearest")
             search = search.to(dtype=data_type)
             image_batch[index1*batch_size+index2] = search
     return image_batch
 # in : numpy(float), out: int
-def get_obj_x_y_w_h(threshold_map, x, y, w, h, img, device, data_type, model_foreground):
+def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, data_type, model_foreground):
+    flag = False
     nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
     lblareas = stats[1:, cv2.CC_STAT_AREA]
-    center_list = []
-    left_list = []
-    top_list = []
-    right_list = []
-    bottom_list = []
-    for index, i in enumerate(lblareas):
-        if i > 0:
-            center_list.append(centroids[index + 1])
-            left_list.append(stats[index + 1, cv2.CC_STAT_LEFT])
-            top_list.append(stats[index + 1, cv2.CC_STAT_TOP])
-            right_list.append(stats[index + 1, cv2.CC_STAT_LEFT] + stats[index + 1, cv2.CC_STAT_WIDTH])
-            bottom_list.append(stats[index + 1, cv2.CC_STAT_TOP] + stats[index + 1, cv2.CC_STAT_HEIGHT])
-    pred_center_x = np.array(center_list)[:, 0].sum() / len(center_list)
-    pred_center_y = np.array(center_list)[:, 1].sum() / len(center_list)
-    pred_x, pred_y = np.array(left_list).min(), np.array(top_list).min()
-    new_center_x, new_center_y = (pred_center_x*3*w/192) + (x - w), (pred_center_y*3*h/192) + (y - h)
-    # new_x = (pred_x*3*w/192) + (x - w)
-    # new_y = (pred_y*3*h/192) + (y - h)
-    # get w, h
-    # pred_w, pred_h = np.array(right_list).max() - pred_x, np.array(bottom_list).max() - pred_y
-    # new_w, new_h = (pred_w*3*w/192), (pred_h*3*h/192)
-    # scale list
-    factor_list = np.array([1.0, 0.98, 1.02, 0.98*0.98, 1.02*1.02])
-    scale_list = np.array(np.meshgrid(factor_list, factor_list))
-    scale_list = scale_list.T.reshape(25, 2)
-    # confidence score
-    confidence_score = np.zeros(25)
-    for index, scale in enumerate(scale_list):
-        # Get search grid
-        grid = get_grid(img.shape[3], img.shape[2], new_center_x, new_center_y, int(w*scale[0]), int(h*scale[1]), 64, 64)
-        grid = grid.to(dtype=data_type)
-        search = torch.nn.functional.grid_sample(img, grid)
-        search = search.to(device, dtype=data_type)
-        # inference
-        with torch.no_grad():
-            pred, feature_map = model_foreground(search)
-        # error map
-        error_map = pred
-        confidence_score[index] = error_map.detach().cpu().detach().numpy().sum()
-    # get w, h
-    abs_confidence_score = abs(confidence_score)
-    max_index = np.argmax(abs_confidence_score)
-    best_scale = scale_list[max_index]
-    new_w, new_h = (best_scale[0] * w), (best_scale[1] * h)
+    try:
+        pred_center_x, pred_center_y = centroids[np.argmax(np.array(lblareas)) + 1]
+    except:
+        return x, y, w, h, flag
+    new_center_x, new_center_y = (pred_center_x*2*w/128) + (x - 1/2*w), (pred_center_y*2*h/128) + (y - 1/2*h)
+
+    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_seg)
+    lblareas = stats[1:, cv2.CC_STAT_AREA]
+    try:
+        pred_w, pred_h = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_WIDTH], stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_HEIGHT]
+    except:
+        return x, y, w, h, flag
+    new_w, new_h = (pred_w*2*w/128), (pred_h*2*h/128)
     w = int(new_w)
     h = int(new_h)
+
+    # # scale list
+    # factor_list = np.array([1.0, 0.98, 1.02, 0.98*0.98, 1.02*1.02])
+    # scale_list = np.array(np.meshgrid(factor_list, factor_list))
+    # scale_list = scale_list.T.reshape(25, 2)
+    # # confidence score
+    # confidence_score = np.zeros(25)
+    # for index, scale in enumerate(scale_list):
+    #     # Get search grid
+    #     grid = get_grid(img.shape[3], img.shape[2], new_center_x, new_center_y, int(w*scale[0]), int(h*scale[1]), 64, 64)
+    #     grid = grid.to(dtype=data_type)
+    #     search = torch.nn.functional.grid_sample(img, grid)
+    #     search = search.to(device, dtype=data_type)
+    #     # inference
+    #     with torch.no_grad():
+    #         pred, pred_seg, feature_map = model_foreground(search)
+    #     # error map
+    #     error_map = pred_seg
+    #     confidence_score[index] = error_map.detach().cpu().numpy().sum()
+    # # get w, h
+    # max_index = np.argmax(confidence_score)
+    # best_scale = scale_list[max_index]
+    # new_w, new_h = (best_scale[0] * w), (best_scale[1] * h)
+    # w = int(new_w)
+    # h = int(new_h)
     # get x, y 
     x = int(new_center_x) - int(w/2)
     y = int(new_center_y) - int(h/2)
-    return x, y, w, h
+    return x, y, w, h, flag
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):

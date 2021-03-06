@@ -52,30 +52,30 @@ class FCAE_tracker():
         self.w = w
         self.h = h
         # model init
-        self.model_foreground = Discriminator().to(self.device, dtype=self.data_type)
-        self.model_foreground.train()
+        self.model_discriminator = Discriminator().to(self.device, dtype=self.data_type)
+        self.model_discriminator.train()
         self.model_background = FCNet().to(self.device, dtype=self.data_type)
         self.model_background.train()
         # background
         # optimizer init
         optimizer = optim.Adam(self.model_background.parameters(), lr = 1e-4)
         # image batch
-        image_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 192, h, 192, self.data_type)
+        image_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, self.data_type)
         # memory
-        self.memory = torch.zeros(number_of_frame, 4*4, 3, 192, 192)
+        self.memory = torch.zeros(number_of_frame, 4*4, 3, 128, 128)
         self.memory[0] = image_batch
         image_batch = image_batch.to(self.device, dtype=self.data_type)
         # count image
         self.count_image = 0
         # train
-        for i in range(0, 1, 1):
+        for i in range(0, 500, 1):
             # optimizer init
             optimizer.zero_grad()
             pred, feature_map = self.model_background(image_batch)
             background_diff = torch.abs(pred - image_batch)
-            for index1, i in enumerate(range(-64, 64, 32)):
-                for index2, j in enumerate(range(-64, 64, 32)):
-                    background_diff[index1*4+index2, :, 64+j:128+j, 64+i:128+i] = 0.0
+            for index1, i in enumerate(range(-32, 32, 16)):
+                for index2, j in enumerate(range(-32, 32, 16)):
+                    background_diff[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = 0.0
             background_diff_loss = background_diff.mean()
             loss = background_diff_loss
             loss.backward()
@@ -104,17 +104,23 @@ class FCAE_tracker():
         error_map = error_map.mean(axis = 1)
         # function.write_heat_map(error_map[self.check_num].detach().cpu().numpy(), self.count_image, "./error_background_" + str(video_num) + "_")
 
+        # gaussian_map
         gaussian_map = torch.from_numpy(g_kernel)
         gaussian_map = gaussian_map.to(self.device, dtype=self.data_type)
         gaussian_map = torch.unsqueeze(gaussian_map, 0)
+        gaussian_map_mask_center= torch.zeros(error_map.shape)
+        for index1, i in enumerate(range(-32, 32, 16)):
+            for index2, j in enumerate(range(-32, 32, 16)):
+                gaussian_map_mask_center[index1*4+index2, 32+j:96+j, 32+i:96+i] = gaussian_map
+        gaussian_map_mask_center = torch.unsqueeze(gaussian_map_mask_center, 1)
 
         # check threshold map
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
         threshold_map[threshold_map!=0.0] = 1.0
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
-        for index1, i in enumerate(range(-64, 64, 32)):
-            for index2, j in enumerate(range(-64, 64, 32)):
-                threshold_map_mask_center[index1*4+index2, 64+j:128+j, 64+i:128+i] = gaussian_map# * threshold_map[index1*4+index2, 64+j:128+j, 64+i:128+i]
+        for index1, i in enumerate(range(-32, 32, 16)):
+            for index2, j in enumerate(range(-32, 32, 16)):
+                threshold_map_mask_center[index1*4+index2, 32+j:96+j, 32+i:96+i] = threshold_map[index1*4+index2, 32+j:96+j, 32+i:96+i]
         threshold_map = threshold_map_mask_center
         threshold_map = torch.unsqueeze(threshold_map, 1)
         # g_filter = torch.from_numpy(g_kernel)
@@ -122,11 +128,11 @@ class FCAE_tracker():
         # g_filter = torch.unsqueeze(g_filter, 0)
         # g_filter = torch.unsqueeze(g_filter, 0)
         # threshold_map = F.conv2d(threshold_map, g_filter, padding=3)
-        threshold_map[threshold_map > 1.0] = 1.0
+        # threshold_map[threshold_map > 1.0] = 1.0
         # function.write_heat_map(threshold_map[self.check_num][0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num) + "_")
 
         # check mask
-        # mask = np.zeros((192, 192, 3))
+        # mask = np.zeros((128, 128, 3))
         # search_np = np.array(search_pil)
         # for i in range(0, 3, 1):
         #     mask[:, :, i] = np.where(threshold_map[self.check_num][0].detach().cpu().detach().numpy() == 1.0, search_np[:, :, i], 0.0)
@@ -137,22 +143,23 @@ class FCAE_tracker():
 
         # foreground
         # optimizer init
-        optimizer = optim.Adam(self.model_foreground.parameters(), lr = 1e-4)
+        optimizer = optim.Adam(self.model_discriminator.parameters(), lr = 1e-4)
         # loss function init
         criterion_bec_loss = nn.BCELoss()
         # train
         for i in range(0, 500, 1):
             optimizer.zero_grad()
-            pred, feature_map = self.model_foreground(image_batch)
-            bce_loss = criterion_bec_loss(pred, threshold_map.to(self.device, dtype=self.data_type))
-            loss = bce_loss
+            pred, pred_seg, feature_map = self.model_discriminator(image_batch)
+            correlation_loss = criterion_bec_loss(pred, gaussian_map_mask_center.to(self.device, dtype=self.data_type))
+            seg_loss = criterion_bec_loss(pred_seg, threshold_map.to(self.device, dtype=self.data_type))
+            loss = correlation_loss + seg_loss
             loss.backward()
             optimizer.step()
         print("foreground finish !!!")
 
         # check pred
         with torch.no_grad():
-            pred, feature_map = self.model_foreground(image_batch)
+            pred, pred_seg, feature_map = self.model_discriminator(image_batch)
         pred_pil = torchvision.transforms.ToPILImage()(pred[self.check_num].detach().cpu())
         # pred_pil.save("./pred_img_with_foreground_" + str(video_num) + "_" + str(self.count_image) + ".jpg")
 
@@ -290,18 +297,18 @@ class FCAE_tracker():
         img = img.to(dtype=self.data_type)
 
         # set model
-        self.model_foreground = self.model_foreground.to(self.device, dtype=self.data_type)
-        self.model_foreground.eval()
+        self.model_discriminator = self.model_discriminator.to(self.device, dtype=self.data_type)
+        self.model_discriminator.eval()
 
         # Get search grid
-        grid = function.get_grid(img.shape[3], img.shape[2], self.x + int(self.w/2), self.y + int(self.h/2), int(3*self.w), int(3*self.h), 192, 192)
+        grid = function.get_grid(img.shape[3], img.shape[2], self.x + int(self.w/2), self.y + int(self.h/2), int(2*self.w), int(2*self.h), 128, 128)
         grid = grid.to(dtype=self.data_type)
         search = torch.nn.functional.grid_sample(img, grid)
         search = search.to(self.device, dtype=self.data_type)
 
         # inference
         with torch.no_grad():
-            pred, feature_map = self.model_foreground(search)
+            pred, pred_seg, feature_map = self.model_discriminator(search)
 
         # check search
         search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
@@ -316,15 +323,30 @@ class FCAE_tracker():
         error_map = error_map.mean(axis = 0)
         error_map = error_map.mean(axis = 0)
         # function.write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_map_fore_" + str(video_num) + "_")
+
+        # error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
         
         # threshold map
         threshold_map = np.where(error_map.detach().cpu().detach().numpy() > 0.5, 1.0, 0.0)
         # function.write_heat_map(threshold_map, self.count_image, "./threshold_map_fore_" + str(video_num) + "_")
+
+        # error map
+        error_map = pred_seg
+        error_map = error_map.mean(axis = 0)
+        error_map = error_map.mean(axis = 0)
+        # function.write_heat_map(error_map.detach().cpu().detach().numpy(), self.count_image, "./error_map_fore_" + str(video_num) + "_")
+
+        # error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
+        
+        # threshold map seg
+        threshold_map_seg = np.where(error_map.detach().cpu().detach().numpy() > 0.5, 1.0, 0.0)
+        # function.write_heat_map(threshold_map_seg, self.count_image, "./threshold_map_fore_seg" + str(video_num) + "_")
         
         # Connected component
-        # get center
         threshold_map = threshold_map.astype(np.uint8)
-        self.x, self.y, self.w, self.h = function.get_obj_x_y_w_h(threshold_map, self.x, self.y, self.w, self.h, img, self.device, self.data_type, self.model_foreground)
+        threshold_map_seg = threshold_map_seg.astype(np.uint8)
+        self.x, self.y, self.w, self.h, flag = function.get_obj_x_y_w_h(threshold_map, threshold_map_seg, self.x, self.y, self.w, self.h, img, self.device, self.data_type, self.model_discriminator)
+        # get center
         # nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
         # lblareas = stats[1:, cv2.CC_STAT_AREA]
         # print(lblareas)
@@ -341,7 +363,7 @@ class FCAE_tracker():
         # self.y = int(new_center_y) - int(self.h/2)
 
         # image_batch
-        image_batch = function.get_image_batch_with_translate_augmentation(img, 4, self.x, self.y, self.w, 192, self.h, 192, self.data_type)
+        image_batch = function.get_image_batch_with_translate_augmentation(img, 4, self.x, self.y, self.w, 128, self.h, 128, self.data_type)
         # memory
         self.memory[self.count_image] = image_batch
 
@@ -359,12 +381,11 @@ class FCAE_tracker():
         img = torch.unsqueeze(img, 0)
         img = img.to(dtype=self.data_type)
         # model init
-        self.model_background = FCNet().to(self.device, dtype=self.data_type)
         self.model_background.train()
-        self.model_foreground.train()
+        self.model_discriminator.train()
 
         self.training_set = torch.cat((self.memory[0], self.memory[self.count_image-1]), 0)
-        self.training_set = self.memory[self.count_image-1]
+        # self.training_set = self.memory[self.count_image-1]
         self.training_set = self.training_set.to(self.device, dtype=self.data_type)
         # image_batch = image_batch.to(self.device, dtype=self.data_type)
         
@@ -372,15 +393,15 @@ class FCAE_tracker():
         optimizer = optim.Adam(self.model_background.parameters(), lr = 1e-4)
 
         # train
-        for i in range(0, 1, 1):
+        for i in range(0, 100, 1):
             # opt init
             optimizer.zero_grad()
             pred, feature_map = self.model_background(self.training_set)
             background_diff = torch.abs(pred - self.training_set)
-            for index1, i in enumerate(range(-64, 64, 32)):
-                for index2, j in enumerate(range(-64, 64, 32)):
-                    background_diff[index1*4+index2, :, 64+j:128+j, 64+i:128+i] = 0.0
-                    # background_diff[index1*4+index2+16, :, 64+j:128+j, 64+i:128+i] = 0.0
+            for index1, i in enumerate(range(-32, 32, 16)):
+                for index2, j in enumerate(range(-32, 32, 16)):
+                    background_diff[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = 0.0
+                    background_diff[index1*4+index2+16, :, 32+j:96+j, 32+i:96+i] = 0.0
             background_diff_loss = background_diff.mean()
             loss = background_diff_loss
             loss.backward()
@@ -398,18 +419,25 @@ class FCAE_tracker():
         error_map = error_map.mean(axis = 1)
         # function.write_heat_map(error_map[self.check_num].detach().cpu().detach().numpy(), self.count_image, "./error_background_" + str(video_num) + "_")
 
-        gaussian_map = torch.from_numpy(g_kernel)
-        gaussian_map = gaussian_map.to(self.device, dtype=self.data_type)
-        gaussian_map = torch.unsqueeze(gaussian_map, 0)
-
         # check threshold map
         threshold_map = torch.nn.functional.threshold(error_map, self.threshold_for_background, 0.0, inplace=False)
         threshold_map[threshold_map!=0.0] = 1.0
+        # gaussian_map
+        gaussian_map = torch.from_numpy(g_kernel)
+        gaussian_map = gaussian_map.to(self.device, dtype=self.data_type)
+        gaussian_map = torch.unsqueeze(gaussian_map, 0)
+        gaussian_map_mask_center= torch.zeros(error_map.shape)
+        for index1, i in enumerate(range(-32, 32, 16)):
+            for index2, j in enumerate(range(-32, 32, 16)):
+                gaussian_map_mask_center[index1*4+index2, 32+j:96+j, 32+i:96+i] = gaussian_map
+                gaussian_map_mask_center[index1*4+index2+16, 32+j:96+j, 32+i:96+i] = gaussian_map
+        gaussian_map_mask_center = torch.unsqueeze(gaussian_map_mask_center, 1)
+        gaussian_map_mask_center[gaussian_map_mask_center > 1.0] = 1.0
         threshold_map_mask_center= torch.zeros(threshold_map.shape)
-        for index1, i in enumerate(range(-64, 64, 32)):
-            for index2, j in enumerate(range(-64, 64, 32)):
-                threshold_map_mask_center[index1*4+index2, 64+j:128+j, 64+i:128+i] = gaussian_map#  *threshold_map[index1*4+index2, 64+j:128+j, 64+i:128+i]
-                # threshold_map_mask_center[index1*4+index2+16, 64+j:128+j, 64+i:128+i] = gaussian_map# *threshold_map[index1*4+index2+16, 64+j:128+j, 64+i:128+i]
+        for index1, i in enumerate(range(-32, 32, 16)):
+            for index2, j in enumerate(range(-32, 32, 16)):
+                threshold_map_mask_center[index1*4+index2, 32+j:96+j, 32+i:96+i] = threshold_map[index1*4+index2, 32+j:96+j, 32+i:96+i]
+                threshold_map_mask_center[index1*4+index2+16, 32+j:96+j, 32+i:96+i] = threshold_map[index1*4+index2+16, 32+j:96+j, 32+i:96+i]
         threshold_map = threshold_map_mask_center
         threshold_map = torch.unsqueeze(threshold_map, 1)
         # g_filter = torch.from_numpy(g_kernel)
@@ -417,20 +445,21 @@ class FCAE_tracker():
         # g_filter = torch.unsqueeze(g_filter, 0)
         # g_filter = torch.unsqueeze(g_filter, 0)
         # threshold_map = F.conv2d(threshold_map, g_filter, padding=3)
-        # threshold_map[threshold_map > 1.0] = 1.0
+        threshold_map[threshold_map > 1.0] = 1.0
         # function.write_heat_map(threshold_map[self.check_num][0].detach().cpu().detach().numpy(), self.count_image, "./threshold_background_" + str(video_num) + "_")
 
         # foreground
         # optimizer init
-        optimizer = optim.Adam(self.model_foreground.parameters(), lr = 1e-4)
+        optimizer = optim.Adam(self.model_discriminator.parameters(), lr = 1e-4)
         # loss function init
         criterion_bec_loss = nn.BCELoss()
         # train
-        for i in range(0, 500, 1):
+        for i in range(0, 100, 1):
             optimizer.zero_grad()
-            pred, feature_map = self.model_foreground(self.training_set)
-            bce_loss = criterion_bec_loss(pred, threshold_map.to(self.device, dtype=self.data_type))
-            loss = bce_loss
+            pred, pred_seg, feature_map = self.model_discriminator(self.training_set)
+            correlation_loss = criterion_bec_loss(pred, gaussian_map_mask_center.to(self.device, dtype=self.data_type))
+            seg_loss = criterion_bec_loss(pred_seg, threshold_map.to(self.device, dtype=self.data_type))
+            loss = correlation_loss + seg_loss
             loss.backward()
             optimizer.step()
         print("foreground finish !!!")
