@@ -26,7 +26,7 @@ for index_2, i in enumerate(GOT_data_list):
     time1 = time.time()
     if index_2 < 1:
         continue
-    if index_2 == 180:
+    if index_2 == 2:
         assert False
     # Path setting
     img_path = "D:/GOT/test/" + i + "/"
@@ -37,8 +37,8 @@ for index_2, i in enumerate(GOT_data_list):
     # img_list.remove("absence.label")
     # img_list.remove("cover.label")
     # img_list.remove("cut_by_image.label")
-    img_list.remove("groundtruth.txt")
     # img_list.remove("meta_info.ini")
+    img_list.remove("groundtruth.txt")
 
     gt = open(gt_path)
     # rect = gt.readline().split(',')
@@ -58,14 +58,12 @@ for index_2, i in enumerate(GOT_data_list):
             real_x = int(float(rect[0]))
             real_y = int(float(rect[1]))
             real_w, real_h = int(float(rect[2])), int(float(rect[3]))
-            tracker.tracker_init(img, real_x, real_y, real_w, real_h, 100, index_2)
+            tracker.tracker_init(img, real_x, real_y, real_w, real_h, 500, index_2)
         else:
-            x, y, w, h = tracker.tracker_inference(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
+            x, y, w, h = tracker.tracker_inference_for_eval(img, index_2, True)
             print(time1 - time.time())
-            if index == 20:
-                assert False
-            # if index % 3 == 0 or index < 5:
-            tracker.tracker_update(img, real_x, real_y, real_w, real_h, 1, 100, index_2)
+            if index % 3 == 0:
+                tracker.tracker_update(index_2)
 
     print(index_2)
     print(time1 - time.time())
