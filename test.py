@@ -19,25 +19,25 @@ import time
 # my function
 import src.My_Tracker as Tracker
 
-GOT_data_path = "D:/GOT/test/"
+GOT_data_path = "D:/GOT/val/"
 GOT_data_list =  os.listdir(GOT_data_path)
 
 for index_2, i in enumerate(GOT_data_list):
     time1 = time.time()
-    if index_2 < 1:
+    if index_2 < 0:
         continue
-    if index_2 == 2:
+    if index_2 == 5:
         assert False
     # Path setting
-    img_path = "D:/GOT/test/" + i + "/"
-    gt_path = "D:/GOT/test/" + i + "/groundtruth.txt"
+    img_path = "D:/GOT/val/" + i + "/"
+    gt_path = "D:/GOT/val/" + i + "/groundtruth.txt"
 
     # Read image directory as a list & Remove unused files in list
     img_list = os.listdir(img_path)
-    # img_list.remove("absence.label")
-    # img_list.remove("cover.label")
-    # img_list.remove("cut_by_image.label")
-    # img_list.remove("meta_info.ini")
+    img_list.remove("absence.label")
+    img_list.remove("cover.label")
+    img_list.remove("cut_by_image.label")
+    img_list.remove("meta_info.ini")
     img_list.remove("groundtruth.txt")
 
     gt = open(gt_path)

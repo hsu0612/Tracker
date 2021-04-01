@@ -1,6 +1,7 @@
 from __future__ import absolute_import, print_function
 from got10k.trackers import Tracker
 from got10k.experiments import ExperimentGOT10k
+from got10k.experiments import ExperimentVOT
 import src.My_Tracker as My_Tracker
 import os
 import time
@@ -15,7 +16,7 @@ class IdentityTracker(Tracker):
             name='IdentityTracker', # name of the tracker
             is_deterministic=True   # deterministic (True) or stochastic (False)
         )
-        self.path = "D:/GOT/test/"
+        self.path = "D:/GOT/val/"
         self.data_list = os.listdir(self.path)
         self.count = -1
     def init(self, image, box):
@@ -25,12 +26,12 @@ class IdentityTracker(Tracker):
             box {np.ndarray} -- Target bounding box (4x1,
                 [left, top, width, height]) in the first frame.
         """
-        if self.count > -1+5:
-            assert False
+        # if self.count > -1+5:
+        #     assert False
         self.count+=1
         gt_path = self.path + self.data_list[self.count] + "/groundtruth.txt"
         print(gt_path)
-        self.number_of_frame = len(os.listdir(self.path + self.data_list[self.count]))-1
+        self.number_of_frame = len(os.listdir(self.path + self.data_list[self.count]))-5
         print(self.number_of_frame)
         self.gt = open(gt_path)
         rect = self.gt.readline().split(',')
@@ -53,7 +54,10 @@ class IdentityTracker(Tracker):
         x, y, w, h = self.tracker.tracker_inference_for_eval(image, self.count, True)
         self.count_for_online_train += 1
         if self.count_for_online_train % 3 == 0:
+        # if self.count_for_online_train == 3:
             self.tracker.tracker_update(self.count)
+        # if self.count_for_online_train == 6:
+        #     self.tracker.tracker_update(self.count)
         # x, y, w, h = self.tracker.tracker_inference_for_eval(image, self.count, False)
         self.box = [float(x), float(y), float(w), float(h)]
         return self.box
@@ -63,7 +67,7 @@ if __name__ == '__main__':
     # setup experiment
     experiment = ExperimentGOT10k(
         root_dir=ROOT_DIR,          # GOT-10k's root directory
-        subset='test',               # 'train' | 'val' | 'test'
+        subset='val',               # 'train' | 'val' | 'test'
         result_dir='./results',       # where to store tracking results
         report_dir='./reports'        # where to store evaluation reports
     )

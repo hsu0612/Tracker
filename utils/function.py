@@ -1,6 +1,25 @@
+# library
+import os
+from pathlib import Path
+import json
 import numpy as np
 import cv2
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFilter
+from scipy import signal
+from sklearn import manifold
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data.dataset import Dataset
+from torch.utils.data import DataLoader
+import torch.optim as optim
+from torch.optim import lr_scheduler
+import torchvision
+from torchvision import models
+from torchvision import transforms
+import matplotlib.pyplot as plt
 # function
 # in: float, out: torch float
 def get_grid(w, h, x, y, crop_w, crop_h, grid_w, grid_h):
@@ -40,34 +59,46 @@ def get_image_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w
             # get the cropped img
             grid = get_grid(img.shape[3], img.shape[2], x + (w/2) + (-1*i*w/grid_w), y + (h/2) + (-1*j*h/grid_h), (2*w), (2*h), grid_w, grid_h)
             grid = grid.to(dtype=data_type)
-            search = torch.nn.functional.grid_sample(img, grid, mode="nearest")
+            search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
             search = search.to(dtype=data_type)
             image_batch[index1*batch_size+index2] = search
     return image_batch
 # in : numpy(float), out: int
-def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, data_type, model_foreground):
+def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, data_type, model_foreground, search):
     
-    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
+    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_seg)
     lblareas = stats[1:, cv2.CC_STAT_AREA]
     try:
         pred_center_x, pred_center_y = centroids[np.argmax(np.array(lblareas)) + 1]
+        pred_x, pred_y = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_LEFT], stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_TOP]
     except:
-        return x, y, w, h
+        return x, y, w, h, False
     new_center_x, new_center_y = (pred_center_x*2*w/128) + (x - 1/2*w), (pred_center_y*2*h/128) + (y - 1/2*h)
+    new_x, new_y = (pred_x*2*w/128) + (x - 1/2*w), (pred_y*2*h/128) + (y - 1/2*h)
 
     nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_seg)
     lblareas = stats[1:, cv2.CC_STAT_AREA]
     try:
         pred_w, pred_h = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_WIDTH], stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_HEIGHT]
     except:
-        return x, y, w, h
+        return x, y, w, h, False
     new_w, new_h = (pred_w*2*w/128), (pred_h*2*h/128)
-    w = int(new_w)
-    h = int(new_h)
-    if w < 50:
-        w = 50
-    if h < 50:
-        h = 50
+
+    # img_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
+    # img_pil_d = ImageDraw.Draw(img_pil)
+    # img_pil_d.rectangle([pred_x, pred_y, pred_x+pred_w, pred_y+pred_h], outline ="red")
+    # img_pil.save("./mask_" + str(0) + ".jpg")
+    # assert False
+
+    # magic
+    if abs((new_w - w) / img.shape[2]) > 0.025:
+        w = int(new_w*0.1 + w*0.9)
+    else:
+        w = int(new_w)
+    if abs((new_h - h) / img.shape[3]) > 0.025:
+        h = int(new_h*0.1 + h*0.9)
+    else:
+        h = int(new_h)
 
     # # scale list
     # factor_list = np.array([1.0, 0.98, 1.02, 0.98*0.98, 1.02*1.02])
@@ -91,12 +122,14 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
    # max_index = np.argmax(confidence_score)
    # best_scale = scale_list[max_index]
    # new_w, new_h = (best_scale[0] * w), (best_scale[1] * h)
-   # w = int(new_w)
-   # h = int(new_h)
+    # w = new_w
+    # h = new_h
 
-    x = int(new_center_x) - int(w/2)
-    y = int(new_center_y) - int(h/2)
-    return x, y, w, h
+    x = new_center_x - w/2
+    y = new_center_y - h/2
+    x = new_x
+    y = new_y
+    return x, y, w, h, True
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):
@@ -110,5 +143,5 @@ def write_tracking_result(img, x, y, count, w, h, write_path):
     img = np.swapaxes(img, 2, 3)
     img_render = img[0].copy()
     img_render = cv2.cvtColor(img_render.astype(np.float32), cv2.COLOR_BGR2RGB)
-    cv2.rectangle(img_render, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    cv2.rectangle(img_render, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 2)
     cv2.imwrite(write_path + str(count) + ".jpg", img_render*255)
