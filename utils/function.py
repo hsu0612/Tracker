@@ -134,6 +134,10 @@ def gradient(pred):
         D_dy = pred[:, :, 1:] - pred[:, :, :-1]
         D_dx = pred[:, :, :, 1:] - pred[:, :, :, :-1]
         return D_dx, D_dy
+# fuck linux
+def get_sorting_list(data_list, save_path):
+    with open(save_path, 'w') as f:
+        f.write(json.dumps(data_list))
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):

@@ -91,44 +91,43 @@ class AE_Segmentation():
             mask_rec_loss = mask_rec.mean()
 
             loss = background_diff_loss + mask_rec_loss
-            # loss = mask_rec_loss
             loss.backward()
             optimizer.step()
             if iter % 100 == 0:
                 print(loss)
 
         # inference
-        with torch.no_grad():
-            pred, feature_map = self.background_model(img_batch.to("cuda", dtype=torch.float32))
+        # with torch.no_grad():
+        #     pred, feature_map = self.background_model(img_batch.to("cuda", dtype=torch.float32))
 
-        error_map = torch.abs(pred - img_batch.to("cuda", dtype=torch.float32))
-        error_map = error_map.sum(axis = 1)
-        error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
-        threshold_map = np.where(error_map.cpu().detach().numpy() > 0.2, 1.0, 0.0)
-        threshold_map = 255*threshold_map[0].astype(np.uint8)
-        nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
-        lblareas = stats[1:, cv2.CC_STAT_AREA]
-        mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
-        mask = data_transformation(mask)
-        mask_temp = torch.zeros((16, 1, 128, 128))
-        for index1, i in enumerate(range(-32, 32, 16)):
-            for index2, j in enumerate(range(-32, 32, 16)):
-                mask_temp[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = mask
+        # error_map = torch.abs(pred - img_batch.to("cuda", dtype=torch.float32))
+        # error_map = error_map.sum(axis = 1)
+        # error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
+        # threshold_map = np.where(error_map.cpu().detach().numpy() > 0.2, 1.0, 0.0)
+        # threshold_map = 255*threshold_map[0].astype(np.uint8)
+        # nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
+        # lblareas = stats[1:, cv2.CC_STAT_AREA]
+        # mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
+        # mask = data_transformation(mask)
+        # mask_temp = torch.zeros((16, 1, 128, 128))
+        # for index1, i in enumerate(range(-32, 32, 16)):
+        #     for index2, j in enumerate(range(-32, 32, 16)):
+        #         mask_temp[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = mask
         
-        optimizer_fore = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
-        # loss function init
-        criterion_bec_loss = nn.BCELoss()
-        # fore
-        for iter in range(0, 1001, 1):
-            # optimizer init
-            optimizer_fore.zero_grad()                                                                                                                                                                                                                                                                                         
-            pred, feature_map = self.foreground_model(img_batch)
+        # optimizer_fore = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
+        # # loss function init
+        # criterion_bec_loss = nn.BCELoss()
+        # # fore
+        # for iter in range(0, 1001, 1):
+        #     # optimizer init
+        #     optimizer_fore.zero_grad()                                                                                                                                                                                                                                                                                         
+        #     pred, feature_map = self.foreground_model(img_batch)
 
-            loss = criterion_bec_loss(pred, mask_temp.to("cuda", dtype=torch.float32))
-            loss.backward()
-            optimizer_fore.step()
-            if iter % 100 == 0:
-                print(loss)
+        #     loss = criterion_bec_loss(pred, mask_temp.to("cuda", dtype=torch.float32))
+        #     loss.backward()
+        #     optimizer_fore.step()
+        #     if iter % 100 == 0:
+        #         print(loss)
 
     def inference(self, img_batch, num):
         with torch.no_grad():
