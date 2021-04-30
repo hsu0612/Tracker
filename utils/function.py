@@ -138,6 +138,10 @@ def gradient(pred):
 def get_sorting_list(data_list, save_path):
     with open(save_path, 'w') as f:
         f.write(json.dumps(data_list))
+def get_reading_list(save_path):
+    with open(save_path, 'r') as f:
+        a = json.loads(f.read())
+        return a
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):

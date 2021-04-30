@@ -21,22 +21,26 @@ from segmentation.my_approach import AE_Segmentation
 IMG_PATH = "D:/SegTrackv2/JPEGImages/"
 img_dir_list = os.listdir(IMG_PATH)
 function.get_sorting_list(img_dir_list, "./img_dir_list.txt")
+img_dir_list = function.get_reading_list("./img_dir_list.txt")
 img_list = []
 
 BBOX_PATH = "./segtrack/bbox/"
 bbox_dir_list = os.listdir(BBOX_PATH)
 function.get_sorting_list(bbox_dir_list, "./bbox_dir_list.txt")
+bbox_dir_list = function.get_reading_list("./bbox_dir_list.txt")
 bbox_list = []
 
 GT_PATH = "D:/SegTrackv2/GroundTruth/"
 gt_dir_list = os.listdir(GT_PATH)
 function.get_sorting_list(gt_dir_list, "./gt_dir_list.txt")
+gt_dir_list = function.get_reading_list("./gt_dir_list.txt")
 gt_img_list = []
 
 # img
 for i in range(0, 14, 1):
     a = os.listdir(IMG_PATH + img_dir_list[i])
     function.get_sorting_list(a, "./a.txt")
+    a = function.get_reading_list("./a.txt")
     for j in range(0, len(a), 1):
         a[j] = IMG_PATH + img_dir_list[i] + "/" + a[j]
     if i == 2 or i == 3 or i == 4 or i == 7 or i == 9:
@@ -56,6 +60,7 @@ for i in range(0, 14, 1):
 for i in range(0, 14, 1):
     bbox_total_data_list = os.listdir(BBOX_PATH + bbox_dir_list[i])
     function.get_sorting_list(bbox_total_data_list, "./bbox_total_data_list.txt")
+    bbox_total_data_list = function.get_reading_list("./bbox_total_data_list.txt")
     for j in range(0, len(bbox_total_data_list), 1):
         bbox_data_list = np.load(BBOX_PATH + bbox_dir_list[i] + "/" + bbox_total_data_list[j], allow_pickle=True)
         bbox_list.append(bbox_data_list)
@@ -65,10 +70,12 @@ for i in range(0, 14, 1):
     if i == 2 or i == 3 or i == 4 or i == 7 or i == 9 or i == 11:
         sub_dir = os.listdir(GT_PATH + gt_dir_list[i])
         function.get_sorting_list(sub_dir, "./sub_dir.txt")
+        sub_dir = function.get_reading_list("./sub_dir.txt")
         for j in range(0, len(sub_dir), 1):
             sub_path = GT_PATH + gt_dir_list[i] + "/" + sub_dir[j]
             a = os.listdir(GT_PATH + gt_dir_list[i] + "/" + sub_dir[j])
             function.get_sorting_list(a, "./a2.txt")
+            a = function.get_reading_list("./a2.txt")
             sub_list = []
             for k in range(0, len(a), 1):
                 sub_list.append(GT_PATH + gt_dir_list[i] + "/" + sub_dir[j] + "/" +  a[k])
@@ -77,6 +84,7 @@ for i in range(0, 14, 1):
         sub_list = []
         a = os.listdir(GT_PATH + gt_dir_list[i])
         function.get_sorting_list(a, "./a3.txt")
+        a = function.get_reading_list("./a3.txt")
         for k in range(0, len(a), 1):
             sub_list.append(GT_PATH + gt_dir_list[i] + "/" +  a[k])
         gt_img_list.append(sub_list)
