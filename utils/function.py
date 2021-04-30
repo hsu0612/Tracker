@@ -59,14 +59,14 @@ def get_image_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w
             # get the cropped img
             grid = get_grid(img.shape[3], img.shape[2], x + (w/2) + (-1*i*w/grid_w), y + (h/2) + (-1*j*h/grid_h), (2*w), (2*h), grid_w, grid_h)
             grid = grid.to(dtype=data_type)
-            search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
+            search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="border")
             search = search.to(dtype=data_type)
             image_batch[index1*batch_size+index2] = search
     return image_batch
 # in : numpy(float), out: int
 def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, data_type, model_foreground, search):
     
-    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_seg)
+    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
     lblareas = stats[1:, cv2.CC_STAT_AREA]
     try:
         pred_center_x, pred_center_y = centroids[np.argmax(np.array(lblareas)) + 1]
@@ -127,9 +127,13 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
 
     x = new_center_x - w/2
     y = new_center_y - h/2
-    x = new_x
-    y = new_y
+    # x = new_x
+    # y = new_y
     return x, y, w, h, True
+def gradient(pred):
+        D_dy = pred[:, :, 1:] - pred[:, :, :-1]
+        D_dx = pred[:, :, :, 1:] - pred[:, :, :, :-1]
+        return D_dx, D_dy
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):

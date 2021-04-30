@@ -44,13 +44,13 @@ if __name__ == '__main__':
     tracker = IdentityTracker()
 
     # setup experiment (validation subset)
-    experiment = ExperimentGOT10k(
-        root_dir="D:/GOT/",          # GOT-10k's root directory
-        # experiments=('supervised')
-        subset='val',               # 'train' | 'val' | 'test'
-        # version=2013
-        result_dir='results',       # where to store tracking results
-        report_dir='reports'        # where to store evaluation reports
+    experiment = ExperimentVOT(
+        root_dir="D:/VOT_2017/",          # GOT-10k's root directory
+        experiments=('supervised')
+        # subset='val',               # 'train' | 'val' | 'test'
+        # # version=2013
+        # result_dir='results',       # where to store tracking results
+        # report_dir='reports'        # where to store evaluation reports
     )
 
     # run experiments on GOT-10k

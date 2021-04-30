@@ -63,10 +63,15 @@ class FCAE_tracker():
 
         # image batch
         image_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, self.data_type)
-
+        image_batch_u = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w*0.9, 128, h*0.9, 128, self.data_type)
+        image_batch_d = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w*1.1, 128, h*1.1, 128, self.data_type)
         # memory
         self.memory = torch.zeros(number_of_frame, 4*4, 3, 128, 128)
+        self.memory_u = torch.zeros(number_of_frame, 4*4, 3, 128, 128)
+        self.memory_d = torch.zeros(number_of_frame, 4*4, 3, 128, 128)
         self.memory[0] = image_batch
+        self.memory_u[0] = image_batch_u
+        self.memory_d[0] = image_batch_d
 
         # count image
         self.count_image = 0
@@ -204,6 +209,28 @@ class FCAE_tracker():
         search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
         search = search.to(self.device, dtype=self.data_type)
 
+        # img_temp = img[:, :, 300:500, 100:500];    
+        # img_temp_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
+        # img_temp_pil.save("./" + str(self.count_image) + ".jpg")
+
+        # test = torch.nn.functional.grid_sample(self.img_temp, grid, mode="bilinear", padding_mode="zeros")
+        # test = test.to(self.device, dtype=self.data_type)
+
+        # # inference
+        # with torch.no_grad():
+        #     pred, pred_seg, feature_map1 = self.model_discriminator(test)
+
+        # test = torch.nn.functional.grid_sample(img_temp, grid, mode="bilinear", padding_mode="zeros")
+        # test = test.to(self.device, dtype=self.data_type)
+
+        # # inference
+        # with torch.no_grad():
+        #     pred, pred_seg, feature_map2 = self.model_discriminator(test)
+
+        # print((feature_map1 - feature_map2).mean())
+
+        # assert False
+
         # inference
         with torch.no_grad():
             pred, pred_seg, feature_map = self.model_discriminator(search)
@@ -254,12 +281,17 @@ class FCAE_tracker():
 
         return self.x, self.y, self.w, self.h
     
-    def tracker_update(self, video_num):
+    def tracker_update(self, video_num, flag):
         # model init
         self.model_background.train()
         self.model_discriminator.train()
         # train data init
-        self.training_set = torch.cat((self.memory[self.count_image-1], self.memory[self.count_image-2], self.memory[0]), 0)
+        if flag == 0:
+            self.training_set = torch.cat((self.memory[self.count_image-1], self.memory[self.count_image-2], self.memory[0]), 0)
+        elif flag == 1:
+            self.training_set = torch.cat((self.memory_u[self.count_image-1], self.memory_u[self.count_image-2], self.memory_u[0]), 0)
+        elif flag == 2:
+            self.training_set = torch.cat((self.memory_d[self.count_image-1], self.memory_d[self.count_image-2], self.memory_d[0]), 0)
         self.training_set = self.training_set.to(self.device, dtype=self.data_type)
         
         # optimizer init
@@ -334,7 +366,8 @@ class FCAE_tracker():
             pred, pred_seg, feature_map = self.model_discriminator(self.training_set)
             correlation_loss = criterion_bec_loss(pred, gaussian_map_mask_center.to(self.device, dtype=self.data_type))
             seg_loss = criterion_bec_loss(pred_seg, threshold_map.to(self.device, dtype=self.data_type))
-            loss = correlation_loss + seg_loss
+            area_loss = (pred_seg - pred_seg.mean(axis=0, keepdims=True)).mean()
+            loss = correlation_loss + seg_loss + area_loss
             # if i % 100 == 0:
             #     print(loss)
             loss.backward()

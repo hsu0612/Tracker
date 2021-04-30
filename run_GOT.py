@@ -55,7 +55,9 @@ class IdentityTracker(Tracker):
         self.count_for_online_train += 1
         if self.count_for_online_train % 3 == 0:
         # if self.count_for_online_train == 3:
-            self.tracker.tracker_update(self.count)
+            self.tracker.tracker_update(self.count, 0)
+            # self.tracker.tracker_update(self.count, 1)
+            # self.tracker.tracker_update(self.count, 2)
         # if self.count_for_online_train == 6:
         #     self.tracker.tracker_update(self.count)
         # x, y, w, h = self.tracker.tracker_inference_for_eval(image, self.count, False)
