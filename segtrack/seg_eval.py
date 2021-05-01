@@ -10,6 +10,8 @@ from torchvision import transforms
 from skimage.color import gray2rgb
 from sklearn.metrics import jaccard_score
 import time
+import configparser
+import shutil
 # my function
 sys.path.append('./')
 import utils.function as function
@@ -20,25 +22,36 @@ from segmentation.my_approach import AE_Segmentation
 # get data path
 IMG_PATH = "D:/SegTrackv2/JPEGImages/"
 img_dir_list = os.listdir(IMG_PATH)
+img_dir_list.sort()
 # function.get_sorting_list(img_dir_list, "./img_dir_list.txt")
 # img_dir_list = function.get_reading_list("./img_dir_list.txt")
 img_list = []
 
 BBOX_PATH = "./segtrack/bbox/"
 bbox_dir_list = os.listdir(BBOX_PATH)
+bbox_dir_list.sort()
 # function.get_sorting_list(bbox_dir_list, "./bbox_dir_list.txt")
 # bbox_dir_list = function.get_reading_list("./bbox_dir_list.txt")
 bbox_list = []
 
 GT_PATH = "D:/SegTrackv2/GroundTruth/"
 gt_dir_list = os.listdir(GT_PATH)
+gt_dir_list.sort()
 # function.get_sorting_list(gt_dir_list, "./gt_dir_list.txt")
 # gt_dir_list = function.get_reading_list("./gt_dir_list.txt")
 gt_img_list = []
 
+config = configparser.ConfigParser()
+config.read('./config/example.ini')
+start_video_num = config['video']['start']
+end_video_num = config['video']['end']
+
+shutil.copy2('./config/example.ini', './output/example.ini')
+
 # img
 for i in range(0, 14, 1):
     a = os.listdir(IMG_PATH + img_dir_list[i])
+    a.sort()
     # function.get_sorting_list(a, "./a.txt")
     # a = function.get_reading_list("./a.txt")
     for j in range(0, len(a), 1):
@@ -59,6 +72,7 @@ for i in range(0, 14, 1):
 # bbox
 for i in range(0, 14, 1):
     bbox_total_data_list = os.listdir(BBOX_PATH + bbox_dir_list[i])
+    bbox_total_data_list.sort()
     # function.get_sorting_list(bbox_total_data_list, "./bbox_total_data_list.txt")
     # bbox_total_data_list = function.get_reading_list("./bbox_total_data_list.txt")
     for j in range(0, len(bbox_total_data_list), 1):
@@ -69,11 +83,13 @@ for i in range(0, 14, 1):
 for i in range(0, 14, 1):
     if i == 2 or i == 3 or i == 4 or i == 7 or i == 9 or i == 11:
         sub_dir = os.listdir(GT_PATH + gt_dir_list[i])
+        sub_dir.sort()
         # function.get_sorting_list(sub_dir, "./sub_dir.txt")
         # sub_dir = function.get_reading_list("./sub_dir.txt")
         for j in range(0, len(sub_dir), 1):
             sub_path = GT_PATH + gt_dir_list[i] + "/" + sub_dir[j]
             a = os.listdir(GT_PATH + gt_dir_list[i] + "/" + sub_dir[j])
+            a.sort()
             # function.get_sorting_list(a, "./a2.txt")
             # a = function.get_reading_list("./a2.txt")
             sub_list = []
@@ -83,6 +99,7 @@ for i in range(0, 14, 1):
     else:
         sub_list = []
         a = os.listdir(GT_PATH + gt_dir_list[i])
+        a.sort()
         # function.get_sorting_list(a, "./a3.txt")
         # a = function.get_reading_list("./a3.txt")
         for k in range(0, len(a), 1):
@@ -107,7 +124,7 @@ My_Approach_iou_sub_list = []
 
 time1 = time.time()
 for i in range(0, len(img_list), 1):
-    if i < 1:
+    if i < 2:
         continue
     for j in range(0, len(img_list[i]), 1):
         img = Image.open(img_list[i][j])
@@ -238,7 +255,7 @@ for i in range(0, len(img_list), 1):
     snake_iou_list.append(snake_iou_sub_list)
     My_Approach_iou_list.append(My_Approach_iou_sub_list)
     print("finish")
-    if i == 1:
+    if i == 2:
        break
 
 # # grabcut
