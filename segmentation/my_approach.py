@@ -135,7 +135,7 @@ class AE_Segmentation():
         
         # with torch.no_grad():
         #     pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
-        pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        # pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
         # pred_pil.save("./pred_img_with_background_" + str(num) + "_" + str(0) + ".jpg")
         # pred_np = np.array(pred_pil)[0][0]
         # pred_np_temp = np.zeros_like(pred_np)
