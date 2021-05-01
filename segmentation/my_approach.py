@@ -93,8 +93,8 @@ class AE_Segmentation():
             loss = background_diff_loss + mask_rec_loss
             loss.backward()
             optimizer.step()
-            if iter % 100 == 0:
-                print(loss)
+            # if iter % 100 == 0:
+            #     print(loss)
 
         # inference
         # with torch.no_grad():
@@ -109,7 +109,7 @@ class AE_Segmentation():
         # lblareas = stats[1:, cv2.CC_STAT_AREA]
         # mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
         # mask = data_transformation(mask)
-        # mask_temp = torch.zeros((16, 1, 128, 128))
+        # mask_temp = torch.zeros((1, 1, 128, 128))
         # for index1, i in enumerate(range(-32, 32, 16)):
         #     for index2, j in enumerate(range(-32, 32, 16)):
         #         mask_temp[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = mask
@@ -123,11 +123,11 @@ class AE_Segmentation():
         #     optimizer_fore.zero_grad()                                                                                                                                                                                                                                                                                         
         #     pred, feature_map = self.foreground_model(img_batch)
 
-        #     loss = criterion_bec_loss(pred, mask_temp.to("cuda", dtype=torch.float32))
+        #     loss = criterion_bec_loss(pred, mask.to("cuda", dtype=torch.float32))
         #     loss.backward()
         #     optimizer_fore.step()
-        #     if iter % 100 == 0:
-        #         print(loss)
+        #     # if iter % 100 == 0:
+        #     #     print(loss)
 
     def inference(self, img_batch, num):
         with torch.no_grad():
@@ -136,7 +136,7 @@ class AE_Segmentation():
         # with torch.no_grad():
         #     pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
         pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        pred_pil.save("./pred_img_with_background_" + str(num) + "_" + str(0) + ".jpg")
+        # pred_pil.save("./pred_img_with_background_" + str(num) + "_" + str(0) + ".jpg")
         # pred_np = np.array(pred_pil)[0][0]
         # pred_np_temp = np.zeros_like(pred_np)
 
@@ -150,9 +150,12 @@ class AE_Segmentation():
         threshold_map_temp[32:96, 32:96] = threshold_map[32:96, 32:96]
         nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_temp)
         lblareas = stats[1:, cv2.CC_STAT_AREA]
-        mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
-        # mask_temp = np.zeros_like(mask)
-        # mask_temp[32:96, 32:96] = mask[32:96, 32:96]
+        try:
+            mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
+        except:
+            return  np.zeros_like(threshold_map)
+        mask_temp = np.zeros_like(mask)
+        mask_temp[32:96, 32:96] = mask[32:96, 32:96]
         # function.write_heat_map(mask, 0, "./threshold_background_" + str(num) + "_")
 
         return mask*255

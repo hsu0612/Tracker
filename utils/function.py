@@ -142,6 +142,13 @@ def get_reading_list(save_path):
     with open(save_path, 'r') as f:
         a = json.loads(f.read())
         return a
+# get mask x, y, w, h
+def get_x_y_w_h(mask):
+    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
+    lblareas = stats[1:, cv2.CC_STAT_AREA]
+    pred_left, pred_top = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_LEFT], stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_TOP]
+    pred_right, pred_bottom = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_WIDTH] + pred_left, stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_HEIGHT] + pred_top
+    return pred_left, pred_top, pred_right, pred_bottom
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):
