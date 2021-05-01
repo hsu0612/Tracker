@@ -37,10 +37,13 @@ gt_img_list = []
 
 config = configparser.ConfigParser()
 config.read('./config/example.ini')
-start_video_num = config['video']['start']
-end_video_num = config['video']['end']
+start_video_num = int(config['video']['start'])
+end_video_num = int(config['video']['end'])
 
-shutil.copy2('./config/example.ini', './output/example.ini')
+t_now = time.time()
+os.mkdir("./output/"+str(t_now))
+file1 = open("./output/" + str(t_now) + "/out.txt", "w")
+shutil.copy2('./config/example.ini', './output/' + str(t_now) + '/example.ini')
 
 # img
 for i in range(0, 14, 1):
@@ -116,7 +119,7 @@ My_Approach_bbox_iou_sub_list = []
 
 time1 = time.time()
 for i in range(0, len(img_list), 1):
-    if i < 2:
+    if i < start_video_num:
         continue
     for j in range(0, len(img_list[i]), 1):
         img = Image.open(img_list[i][j])
@@ -245,23 +248,20 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0
+            bbox_iou = 0.0
 
         My_Approach_bbox_iou_sub_list.append(bbox_iou)
 
     grabcut_bbox_iou_list.append(grabcut_bbox_iou_sub_list)
     grabcut_mask_iou_list.append(grabcut_mask_iou_sub_list)
     snake_mask_iou_list.append(snake_mask_iou_sub_list)
-    snake_mask_iou_list.append(snake_bbox_iou_sub_list)
+    snake_bbox_iou_list.append(snake_bbox_iou_sub_list)
     My_Approach_mask_iou_list.append(My_Approach_mask_iou_sub_list)
     My_Approach_bbox_iou_list.append(My_Approach_bbox_iou_sub_list)
     print("finish")
-    if i == 2:
+    if i == end_video_num:
        break
 
-t_now = time.time()
-os.mkdir("./output/"+str(t_now))
-file1 = open("./output/" + str(t_now) + "out.txt", "w")
 # grabcut
 avg = 0
 for i in range(0, len(grabcut_mask_iou_list), 1):
@@ -269,15 +269,19 @@ for i in range(0, len(grabcut_mask_iou_list), 1):
 print("grab_mask")
 print(avg / len(grabcut_mask_iou_list))
 file1.writelines("grab_mask")
+file1.writelines("\n")
 file1.writelines(str(avg / len(grabcut_mask_iou_list)))
+file1.writelines("\n")
 
 avg = 0
 for i in range(0, len(grabcut_bbox_iou_list), 1):
     avg += sum(grabcut_bbox_iou_list[i]) / len(grabcut_bbox_iou_list[i])
-print("bbox_mask")
+print("grab_bbox")
 print(avg / len(grabcut_bbox_iou_list))
-file1.writelines("bbox_mask")
+file1.writelines("grab_bbox")
+file1.writelines("\n")
 file1.writelines(str(avg / len(grabcut_bbox_iou_list)))
+file1.writelines("\n")
 
 # snake
 avg = 0
@@ -286,7 +290,9 @@ for i in range(0, len(snake_mask_iou_list), 1):
 print("snake_mask")
 print(avg / len(snake_mask_iou_list))
 file1.writelines("snake_mask")
+file1.writelines("\n")
 file1.writelines(str(avg / len(snake_mask_iou_list)))
+file1.writelines("\n")
 
 avg = 0
 for i in range(0, len(snake_bbox_iou_list), 1):
@@ -294,7 +300,9 @@ for i in range(0, len(snake_bbox_iou_list), 1):
 print("snake_bbox")
 print(avg / len(snake_bbox_iou_list))
 file1.writelines("snake_bbox")
+file1.writelines("\n")
 file1.writelines(str(avg / len(snake_bbox_iou_list)))
+file1.writelines("\n")
 
 # model 1
 avg = 0
@@ -303,7 +311,9 @@ for i in range(0, len(My_Approach_mask_iou_list), 1):
 print("model_mask")
 print(avg / len(My_Approach_mask_iou_list))
 file1.writelines("model_mask")
+file1.writelines("\n")
 file1.writelines(str(avg / len(My_Approach_mask_iou_list)))
+file1.writelines("\n")
 
 avg = 0
 for i in range(0, len(My_Approach_bbox_iou_list), 1):
@@ -311,6 +321,7 @@ for i in range(0, len(My_Approach_bbox_iou_list), 1):
 print("model_bbox")
 print(avg / len(My_Approach_bbox_iou_list))
 file1.writelines("model_bbox")
+file1.writelines("\n")
 file1.writelines(str(avg / len(My_Approach_bbox_iou_list)))
 
 file1.close()
