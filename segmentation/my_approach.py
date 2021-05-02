@@ -129,7 +129,7 @@ class AE_Segmentation():
         #     # if iter % 100 == 0:
         #     #     print(loss)
 
-    def inference(self, img_batch, num):
+    def inference(self, img_batch, num, grid):
         with torch.no_grad():
             pred, feature_map = self.background_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
         
@@ -140,15 +140,22 @@ class AE_Segmentation():
         # pred_np = np.array(pred_pil)[0][0]
         # pred_np_temp = np.zeros_like(pred_np)
 
+        grid_np = grid.detach().cpu().numpy()
+        grid_np = grid_np.squeeze()
+        grid_np_x = grid_np[:, :, 0]
+        grid_np_y = grid_np[:, :, 1]
+
         error_map = torch.abs(pred - img_batch.to("cuda", dtype=torch.float32))
         error_map = error_map.sum(axis = 1)
         error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
         # function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_background_" + str(num) + "_")
-        threshold_map = np.where(error_map.cpu().detach().numpy() > 0.2, 1.0, 0.0)
+        threshold_map = np.where(error_map.detach().cpu().numpy() > 0.2, 1.0, 0.0)
+        threshold_map = np.where(grid_np_x > 1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_x < -1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_y > 1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_y < -1.0, 0.0, threshold_map)
         threshold_map = 255*threshold_map[0].astype(np.uint8)
-        threshold_map_temp = np.zeros_like(threshold_map)
-        threshold_map_temp[32:96, 32:96] = threshold_map[32:96, 32:96]
-        nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_temp)
+        nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
         lblareas = stats[1:, cv2.CC_STAT_AREA]
         try:
             mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
