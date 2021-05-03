@@ -143,18 +143,18 @@ for i in range(0, len(img_list), 1):
             continue
 
         # grid previous
-        grid = function.get_grid(img_save.shape[3], img_save.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
+        grid = function.get_grid(img_save.shape[3], img_save.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         previous = torch.nn.functional.grid_sample(img_save, grid, mode="bilinear", padding_mode="zeros")
         previous_pil = torchvision.transforms.ToPILImage()(previous[0].detach().cpu())
         # grid current
-        grid = function.get_grid(img.shape[3], img.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
+        grid = function.get_grid(img.shape[3], img.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
         search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
         # search_pil.save("./img" + str(i) + "_" + str(j) + ".jpg")
         # gt previous
-        grid = function.get_grid(gt_img_save.shape[3], gt_img_save.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
+        grid = function.get_grid(gt_img_save.shape[3], gt_img_save.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         previous_mask = torch.nn.functional.grid_sample(gt_img_save, grid, mode="bilinear", padding_mode="zeros")
         previous_mask_pil = torchvision.transforms.ToPILImage()(previous_mask[0].detach().cpu())
@@ -164,7 +164,7 @@ for i in range(0, len(img_list), 1):
         previous_mask_np /= 255
         previous_mask_np = previous_mask_np.astype(np.uint8)
         # gt current
-        grid = function.get_grid(gt_img.shape[3], gt_img.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
+        grid = function.get_grid(gt_img.shape[3], gt_img.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         mask = torch.nn.functional.grid_sample(gt_img, grid, mode="bilinear", padding_mode="zeros")
         mask_pil = torchvision.transforms.ToPILImage()(mask[0].detach().cpu())
