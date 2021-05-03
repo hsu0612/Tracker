@@ -121,7 +121,7 @@ time1 = time.time()
 for i in range(0, len(img_list), 1):
     if i < start_video_num:
         continue
-    for j in range(0, len(img_list[i]), 1):
+    for j in range(0, len(img_list[i]) - 1, 1):
         img = Image.open(img_list[i][j])
         img = img.convert('RGB')
         img = data_transformation(img)
@@ -133,14 +133,37 @@ for i in range(0, len(img_list), 1):
         gt_img = torch.unsqueeze(gt_img, 0)
         gt_img = gt_img.to(dtype=torch.float32)
         bbox = bbox_list[i][j]
+        next_bbox = bbox_list[i][j + 1]
         x, y, w, h = float(bbox[0]), float(bbox[1]) \
                 ,float(bbox[2]) - float(bbox[0]), float(bbox[3]) - float(bbox[1])
-        # grid
+        if j == 0:
+            img_save = img.clone()
+            gt_img_save = gt_img.clone()
+            pre_x, pre_y, pre_w, pre_h = x, y, w, h
+            continue
+
+        # grid previous
+        grid = function.get_grid(img_save.shape[3], img_save.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
+        grid = grid.to(dtype=torch.float32)
+        previous = torch.nn.functional.grid_sample(img_save, grid, mode="bilinear", padding_mode="zeros")
+        previous_pil = torchvision.transforms.ToPILImage()(previous[0].detach().cpu())
+        # grid current
         grid = function.get_grid(img.shape[3], img.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
         search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
         # search_pil.save("./img" + str(i) + "_" + str(j) + ".jpg")
+        # gt previous
+        grid = function.get_grid(gt_img_save.shape[3], gt_img_save.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
+        grid = grid.to(dtype=torch.float32)
+        previous_mask = torch.nn.functional.grid_sample(gt_img_save, grid, mode="bilinear", padding_mode="zeros")
+        previous_mask_pil = torchvision.transforms.ToPILImage()(previous_mask[0].detach().cpu())
+        # mask_pil.save("./mask" + str(i) + "_" + str(j) + ".jpg")
+        previous_mask_np = np.array(previous_mask_pil)
+        previous_mask_np = previous_mask_np.mean(axis = 2)
+        previous_mask_np /= 255
+        previous_mask_np = previous_mask_np.astype(np.uint8)
+        # gt current
         grid = function.get_grid(gt_img.shape[3], gt_img.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         mask = torch.nn.functional.grid_sample(gt_img, grid, mode="bilinear", padding_mode="zeros")
@@ -150,6 +173,12 @@ for i in range(0, len(img_list), 1):
         mask_np = mask_np.mean(axis = 2)
         mask_np /= 255
         mask_np = mask_np.astype(np.uint8)
+
+        try:
+            gt_l, gt_t, gt_r, gt_b = function.get_x_y_w_h(mask_np)
+        except:
+            gt_l, gt_t, gt_r, gt_b = 0.0, 0.0, 0.0, 0.0
+
         # grabcut
         grabcut_result = grabcut.get_mask(np.array(search_pil), j)
 
@@ -168,13 +197,13 @@ for i in range(0, len(img_list), 1):
             pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(grabcut_result)
         except:
             pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-        x_left = max(pred_l, 32)
-        y_top = max(pred_t, 32)
-        x_right = min(pred_r, 96)
-        y_bottom = min(pred_b, 96)
+        x_left = max(pred_l, gt_l)
+        y_top = max(pred_t, gt_t)
+        x_right = min(pred_r, gt_r)
+        y_bottom = min(pred_b, gt_b)
 
         bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (96 - 32) * (96 - 32)
+        bb2_area = (gt_r - gt_l) * (gt_b - gt_t)
         intersection_area = (x_right - x_left) * (y_bottom - y_top)
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
@@ -201,13 +230,13 @@ for i in range(0, len(img_list), 1):
             pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(snake_result)
         except:
             pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-        x_left = max(pred_l, 32)
-        y_top = max(pred_t, 32)
-        x_right = min(pred_r, 96)
-        y_bottom = min(pred_b, 96)
+        x_left = max(pred_l, gt_l)
+        y_top = max(pred_t, gt_t)
+        x_right = min(pred_r, gt_r)
+        y_bottom = min(pred_b, gt_b)
 
         bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (96 - 32) * (96 - 32)
+        bb2_area = (gt_r - gt_l) * (gt_b - gt_t)
         intersection_area = (x_right - x_left) * (y_bottom - y_top)
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
@@ -217,9 +246,9 @@ for i in range(0, len(img_list), 1):
         snake_bbox_iou_sub_list.append(bbox_iou)
 
         # Model 1
-        img_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, torch.float32)
+        img_batch = function.get_image_batch_with_translate_augmentation(img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
         # if j % 5 == 0:
-        My_Approach.train(img_batch, search)
+        My_Approach.train(img_batch, previous)
         result = My_Approach.inference(search, j, grid)
         
         iou_i = np.logical_and(result, mask_np)
@@ -237,13 +266,13 @@ for i in range(0, len(img_list), 1):
             pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(result)
         except:
             pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-        x_left = max(pred_l, 32)
-        y_top = max(pred_t, 32)
-        x_right = min(pred_r, 96)
-        y_bottom = min(pred_b, 96)
+        x_left = max(pred_l, gt_l)
+        y_top = max(pred_t, gt_t)
+        x_right = min(pred_r, gt_r)
+        y_bottom = min(pred_b, gt_b)
 
         bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (96 - 32) * (96 - 32)
+        bb2_area = (gt_r - gt_l) * (gt_b - gt_t)
         intersection_area = (x_right - x_left) * (y_bottom - y_top)
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
@@ -251,6 +280,10 @@ for i in range(0, len(img_list), 1):
             bbox_iou = 0.0
 
         My_Approach_bbox_iou_sub_list.append(bbox_iou)
+
+        img_save = img.clone()
+        gt_img_save = gt_img.clone()
+        pre_x, pre_y, pre_w, pre_h = x, y, w, h
 
     grabcut_bbox_iou_list.append(grabcut_bbox_iou_sub_list)
     grabcut_mask_iou_list.append(grabcut_mask_iou_sub_list)
