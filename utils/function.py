@@ -63,6 +63,21 @@ def get_image_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w
             search = search.to(dtype=data_type)
             image_batch[index1*batch_size+index2] = search
     return image_batch
+def get_gt_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w, h, grid_h, data_type):
+    image_batch = torch.zeros(batch_size*batch_size, 3, grid_w, grid_h)
+    x_stride = int(grid_w/batch_size)
+    y_stride = int(grid_w/batch_size)
+    x_range = int(x_stride*batch_size/2)
+    y_range = int(y_stride*batch_size/2)
+    for index1, i in enumerate(range(-1*x_range, x_range, x_stride)):
+        for index2, j in enumerate(range(-1*y_range, y_range, y_stride)):
+            # get the cropped img
+            grid = get_grid(img.shape[3], img.shape[2], x + (w/2) + (-1*i*w/grid_w), y + (h/2) + (-1*j*h/grid_h), (2*w), (2*h), grid_w, grid_h)
+            grid = grid.to(dtype=data_type)
+            search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
+            search = search.to(dtype=data_type)
+            image_batch[index1*batch_size+index2] = search
+    return image_batch
 # in : numpy(float), out: int
 def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, data_type, model_foreground, search):
     

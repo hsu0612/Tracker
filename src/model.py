@@ -112,7 +112,7 @@ class FCNet_fore(nn.Module):
         channel_2 = 64
         channel_3 = 128
         channel_4 = 256
-        channel_5 = 16
+        channel_5 = 512
         self.maxpool = nn.MaxPool2d((2, 2), stride = 2)
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.relu = nn.ReLU()
