@@ -248,15 +248,15 @@ for i in range(0, len(img_list), 1):
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
-        gt_batch = function.get_gt_batch_with_translate_augmentation(gt_img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
+        # gt_batch = function.get_gt_batch_with_translate_augmentation(gt_img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
         # previous_mask_pil = torchvision.transforms.ToPILImage()(img_batch[7].detach().cpu())
         # previous_mask_pil.save("./img" + str(i) + "_" + str(j) + ".jpg")
         # previous_mask_pil = torchvision.transforms.ToPILImage()(gt_batch[7].detach().cpu())
         # previous_mask_pil.save("./mask" + str(i) + "_" + str(j) + ".jpg")
         # assert False
-        gt_batch = gt_batch.mean(axis=1, keepdims=True)
+        # gt_batch = gt_batch.mean(axis=1, keepdims=True)
         # if j % 5 == 0:
-        My_Approach.train(img_batch, previous, gt_batch)
+        My_Approach.train(img_batch, previous)
         result = My_Approach.inference(search, j, grid)
         
         iou_i = np.logical_and(result, mask_np)

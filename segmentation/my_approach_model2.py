@@ -37,65 +37,90 @@ class AE_Segmentation2():
         torch.backends.cudnn.deterministic = True
         # foreground model
         self.foreground_model = FCNet_fore().to("cuda", dtype=torch.float32)
-    def train(self, image_batch, img_without_augmentation, gt_batch):
+    def train(self, image_batch, img_without_augmentation):
         # data tarnsformation
         data_transformation = transforms.Compose([
                     transforms.ToTensor(),
                     ])
         # background model
-        # self.background_model = FCNet().to("cuda", dtype=torch.float32)
-        # optimizer = torch.optim.Adam(self.background_model.parameters(), lr = 1e-4)
+        self.background_model = FCNet().to("cuda", dtype=torch.float32)
+        optimizer = torch.optim.Adam(self.background_model.parameters(), lr = 1e-4)
         image_batch = image_batch.to("cuda", dtype=torch.float32)
         img_without_augmentation = img_without_augmentation.to("cuda", dtype=torch.float32)
-        gt_batch = gt_batch.to("cuda", dtype=torch.float32)
         
-        # grabcut = Grabcut()
-        # mask_batch = np.zeros((128, 128, 16))
-        # search_pil = torchvision.transforms.ToPILImage()(img_without_augmentation[0].detach().cpu())
-        # mask = grabcut.get_mask(np.array(search_pil), 0)
+        grabcut = Grabcut()
+        mask_batch = np.zeros((128, 128, 16))
+        search_pil = torchvision.transforms.ToPILImage()(img_without_augmentation[0].detach().cpu())
+        mask = grabcut.get_mask(np.array(search_pil), 0)
 
-        # for index1, i in enumerate(range(-32, 32, 16)):
-        #     for index2, j in enumerate(range(-32, 32, 16)):
-        #         mask_batch[32+j:96+j, 32+i:96+i, index1*4+index2] = mask[32:96, 32:96]
+        for index1, i in enumerate(range(-32, 32, 16)):
+            for index2, j in enumerate(range(-32, 32, 16)):
+                mask_batch[32+j:96+j, 32+i:96+i, index1*4+index2] = mask[32:96, 32:96]
 
-        # mask_batch = data_transformation(mask_batch)
-        # mask_batch = mask_batch.unsqueeze(1).to("cuda", dtype=torch.float32)
+        mask_batch = data_transformation(mask_batch)
+        mask_batch = mask_batch.unsqueeze(1).to("cuda", dtype=torch.float32)
 
-        # img_pil = torchvision.transforms.ToPILImage()(img_without_augmentation[0].detach().cpu())
-        # img_np = np.array(img_pil)
-        # img_np = img_np.astype(np.uint8)*255
+        img_pil = torchvision.transforms.ToPILImage()(img_without_augmentation[0].detach().cpu())
+        img_np = np.array(img_pil)
+        img_np = img_np.astype(np.uint8)*255
 
-        # hsv = cv2.cvtColor(img_np, cv2.COLOR_BGR2HSV)
-        # hsv[:, :, 0] = (90 + hsv[:, :, 0]) % 180
-        # rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+        hsv = cv2.cvtColor(img_np, cv2.COLOR_BGR2HSV)
+        hsv[:, :, 0] = (90 + hsv[:, :, 0]) % 180
+        rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-        # for iter in range(0, 1001, 1):
-        #     noise_r = torch.normal(rgb[32:96, 32:96, 0].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
-        #     noise_g = torch.normal(rgb[32:96, 32:96, 1].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
-        #     noise_b = torch.normal(rgb[32:96, 32:96, 2].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
-        #     # optimizer init
-        #     optimizer.zero_grad()                                                                                                                                                                                                                                                                                                                                             
-        #     # background diff
-        #     img_with_noise = image_batch.clone()
-        #     for index1, i in enumerate(range(-32, 32, 16)):
-        #         for index2, j in enumerate(range(-32, 32, 16)):
-        #             img_with_noise[index1*4+index2, 0, 32+j:96+j, 32+i:96+i] = noise_r
-        #             img_with_noise[index1*4+index2, 1, 32+j:96+j, 32+i:96+i] = noise_g
-        #             img_with_noise[index1*4+index2, 2, 32+j:96+j, 32+i:96+i] = noise_b
-        #     pred, feature_map = self.background_model(image_batch)
-        #     background_diff = torch.abs(pred - img_with_noise)
-        #     background_diff_loss = background_diff.mean()
-        #     # mask rec
-        #     pred_mask, feature_map = self.background_model(image_batch)
-        #     mask_rec = 1.0 - torch.abs(pred_mask - image_batch)
-        #     mask_rec = mask_rec * mask_batch
-        #     mask_rec_loss = mask_rec.mean()
+        for iter in range(0, 1001, 1):
+            noise_r = torch.normal(rgb[32:96, 32:96, 0].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
+            noise_g = torch.normal(rgb[32:96, 32:96, 1].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
+            noise_b = torch.normal(rgb[32:96, 32:96, 2].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
+            # optimizer init
+            optimizer.zero_grad()                                                                                                                                                                                                                                                                                                                                             
+            # background diff
+            img_with_noise = image_batch.clone()
+            for index1, i in enumerate(range(-32, 32, 16)):
+                for index2, j in enumerate(range(-32, 32, 16)):
+                    img_with_noise[index1*4+index2, 0, 32+j:96+j, 32+i:96+i] = noise_r
+                    img_with_noise[index1*4+index2, 1, 32+j:96+j, 32+i:96+i] = noise_g
+                    img_with_noise[index1*4+index2, 2, 32+j:96+j, 32+i:96+i] = noise_b
+            pred, feature_map = self.background_model(image_batch)
+            background_diff = torch.abs(pred - img_with_noise)
+            background_diff_loss = background_diff.mean()
+            # mask rec
+            pred_mask, feature_map = self.background_model(image_batch)
+            mask_rec = 1.0 - torch.abs(pred_mask - image_batch)
+            mask_rec = mask_rec * mask_batch
+            mask_rec_loss = mask_rec.mean()
 
-        #     loss = background_diff_loss + mask_rec_loss
-        #     loss.backward()
-        #     optimizer.step()
-        #     # if iter % 100 == 0:
-        #     #     print(loss)
+            loss = background_diff_loss + mask_rec_loss
+            loss.backward()
+            optimizer.step()
+            if iter % 100 == 0:
+                print(loss)
+
+        # inference
+        with torch.no_grad():
+            pred, feature_map = self.background_model(img_without_augmentation.to("cuda", dtype=torch.float32))
+
+        error_map = torch.abs(pred - img_without_augmentation.to("cuda", dtype=torch.float32))
+        error_map = error_map.sum(axis = 1)
+        error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
+        threshold_map = np.where(error_map.cpu().detach().numpy() > 0.2, 1.0, 0.0)
+        function.write_heat_map(threshold_map[0], 0, "./error_foreground_" + str(0) + "_")
+        threshold_map = 255*threshold_map[0].astype(np.uint8)
+        nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
+        lblareas = stats[1:, cv2.CC_STAT_AREA]
+        print(lblareas)
+        mask = np.where(labels == np.argmax(np.array(lblareas))+1, 255, 0).astype(np.uint8)
+        print(mask.max())
+        mask = data_transformation(mask)
+        mask = mask.unsqueeze(0)
+        mask_pil = torchvision.transforms.ToPILImage()(mask[0].detach().cpu())
+        mask_pil.save("./img" + ".jpg")
+        mask_temp = torch.zeros((16, 1, 128, 128))
+        for index1, i in enumerate(range(-32, 32, 16)):
+            for index2, j in enumerate(range(-32, 32, 16)):
+                mask_temp[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = mask[:, :, 32:96, 32:96]
+
+        function.write_heat_map(mask_temp[7][0].detach().cpu().numpy(), 0, "./error_foreground2_" + str(0) + "_")
         
         optimizer_fore = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
         # loss function init
@@ -106,7 +131,7 @@ class AE_Segmentation2():
             optimizer_fore.zero_grad()                                                                                                                                                                                                                                                                                         
             pred, feature_map = self.foreground_model(image_batch)
 
-            loss = criterion_bec_loss(pred, gt_batch)
+            loss = criterion_bec_loss(pred, mask_temp.to("cuda", dtype=torch.float32))
             loss.backward()
             optimizer_fore.step()
             if iter % 100 == 0:
@@ -119,7 +144,7 @@ class AE_Segmentation2():
         with torch.no_grad():
             pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
         pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        # pred_pil.save("./pred_img_with_background_" + str(num) + "_" + str(0) + ".jpg")
+        pred_pil.save("./pred_img_with_background_" + str(num) + "_" + str(0) + ".jpg")
         pred_np = np.array(pred_pil)[0][0]
         pred_np_temp = np.zeros_like(pred_np)
 
