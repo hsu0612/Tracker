@@ -218,8 +218,8 @@ for i in range(0, len(img_list), 1):
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, torch.float32)
-        # if j % 5 == 0:
-        My_Approach.train(img_batch, search)
+        if j % 3 == 0:
+            My_Approach.train(img_batch, search)
         result = My_Approach.inference(search, j, grid)
         
         iou_i = np.logical_and(result, mask_np)

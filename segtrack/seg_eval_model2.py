@@ -255,8 +255,8 @@ for i in range(0, len(img_list), 1):
         # previous_mask_pil.save("./mask" + str(i) + "_" + str(j) + ".jpg")
         # assert False
         # gt_batch = gt_batch.mean(axis=1, keepdims=True)
-        # if j % 5 == 0:
-        My_Approach.train(img_batch, previous)
+        if j % 3 == 0:
+            My_Approach.train(img_batch, previous)
         result = My_Approach.inference(search, j, grid)
         
         iou_i = np.logical_and(result, mask_np)
