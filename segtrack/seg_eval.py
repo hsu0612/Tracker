@@ -1,17 +1,14 @@
 import os
 import sys
+import shutil
+import configparser
+import time
 import numpy as np
 import cv2
 from PIL import Image
 import torch
-import torch.optim as optim
 import torchvision
 from torchvision import transforms
-from skimage.color import gray2rgb
-from sklearn.metrics import jaccard_score
-import time
-import configparser
-import shutil
 # my function
 sys.path.append('./')
 import utils.function as function
@@ -151,7 +148,7 @@ for i in range(0, len(img_list), 1):
         mask_np /= 255
         mask_np = mask_np.astype(np.uint8)
         # grabcut
-        grabcut_result = grabcut.get_mask(np.array(search_pil), j)
+        grabcut_result = grabcut.get_mask(np.array(search_pil))
 
         iou_i = np.logical_and(grabcut_result, mask_np)
         iou_u = np.logical_or(grabcut_result, mask_np)
@@ -179,7 +176,7 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0
+            bbox_iou = 1.0
         
         grabcut_bbox_iou_sub_list.append(bbox_iou)
 
@@ -212,15 +209,14 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0
+            bbox_iou = 1.0
         
         snake_bbox_iou_sub_list.append(bbox_iou)
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, torch.float32)
-        if j % 3 == 0:
-            My_Approach.train(img_batch, search)
-        result = My_Approach.inference(search, j, grid)
+        My_Approach.train(img_batch, search, i, j)
+        result = My_Approach.inference(search, grid, j)
         
         iou_i = np.logical_and(result, mask_np)
         iou_u = np.logical_or(result, mask_np)
@@ -248,7 +244,7 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0.0
+            bbox_iou = 1.0
 
         My_Approach_bbox_iou_sub_list.append(bbox_iou)
 

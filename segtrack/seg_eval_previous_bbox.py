@@ -1,17 +1,14 @@
 import os
 import sys
+import shutil
+import configparser
+import time
 import numpy as np
 import cv2
 from PIL import Image
 import torch
-import torch.optim as optim
 import torchvision
 from torchvision import transforms
-from skimage.color import gray2rgb
-from sklearn.metrics import jaccard_score
-import time
-import configparser
-import shutil
 # my function
 sys.path.append('./')
 import utils.function as function
@@ -147,6 +144,7 @@ for i in range(0, len(img_list), 1):
         grid = grid.to(dtype=torch.float32)
         previous = torch.nn.functional.grid_sample(img_save, grid, mode="bilinear", padding_mode="zeros")
         previous_pil = torchvision.transforms.ToPILImage()(previous[0].detach().cpu())
+        # previous_pil.save("./pre_img" + str(i) + "_" + str(j) + ".jpg")
         # grid current
         grid = function.get_grid(img.shape[3], img.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
         grid = grid.to(dtype=torch.float32)
@@ -158,7 +156,7 @@ for i in range(0, len(img_list), 1):
         grid = grid.to(dtype=torch.float32)
         previous_mask = torch.nn.functional.grid_sample(gt_img_save, grid, mode="bilinear", padding_mode="zeros")
         previous_mask_pil = torchvision.transforms.ToPILImage()(previous_mask[0].detach().cpu())
-        # mask_pil.save("./mask" + str(i) + "_" + str(j) + ".jpg")
+        # previous_mask_pil.save("./pre_mask" + str(i) + "_" + str(j) + ".jpg")
         previous_mask_np = np.array(previous_mask_pil)
         previous_mask_np = previous_mask_np.mean(axis = 2)
         previous_mask_np /= 255
@@ -180,7 +178,7 @@ for i in range(0, len(img_list), 1):
             gt_l, gt_t, gt_r, gt_b = 0.0, 0.0, 0.0, 0.0
 
         # grabcut
-        grabcut_result = grabcut.get_mask(np.array(search_pil), j)
+        grabcut_result = grabcut.get_mask(np.array(search_pil))
 
         iou_i = np.logical_and(grabcut_result, mask_np)
         iou_u = np.logical_or(grabcut_result, mask_np)
@@ -208,7 +206,7 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0
+            bbox_iou = 1.0
         
         grabcut_bbox_iou_sub_list.append(bbox_iou)
 
@@ -241,15 +239,14 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0
+            bbox_iou = 1.0
         
         snake_bbox_iou_sub_list.append(bbox_iou)
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
-        # if j % 5 == 0:
-        My_Approach.train(img_batch, previous)
-        result = My_Approach.inference(search, j, grid)
+        My_Approach.train(img_batch, previous, i, j)
+        result = My_Approach.inference(search, grid, j)
         
         iou_i = np.logical_and(result, mask_np)
         iou_u = np.logical_or(result, mask_np)
@@ -277,7 +274,7 @@ for i in range(0, len(img_list), 1):
         if float(bb1_area + bb2_area - intersection_area) > 0.0:
             bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         else:
-            bbox_iou = 0.0
+            bbox_iou = 1.0
 
         My_Approach_bbox_iou_sub_list.append(bbox_iou)
 
@@ -337,25 +334,25 @@ file1.writelines("\n")
 file1.writelines(str(avg / len(snake_bbox_iou_list)))
 file1.writelines("\n")
 
-# model 1
-avg = 0
-for i in range(0, len(My_Approach_mask_iou_list), 1):
-    avg += sum(My_Approach_mask_iou_list[i]) / len(My_Approach_mask_iou_list[i])
-print("model_mask")
-print(avg / len(My_Approach_mask_iou_list))
-file1.writelines("model_mask")
-file1.writelines("\n")
-file1.writelines(str(avg / len(My_Approach_mask_iou_list)))
-file1.writelines("\n")
+# # model 1
+# avg = 0
+# for i in range(0, len(My_Approach_mask_iou_list), 1):
+#     avg += sum(My_Approach_mask_iou_list[i]) / len(My_Approach_mask_iou_list[i])
+# print("model_mask")
+# print(avg / len(My_Approach_mask_iou_list))
+# file1.writelines("model_mask")
+# file1.writelines("\n")
+# file1.writelines(str(avg / len(My_Approach_mask_iou_list)))
+# file1.writelines("\n")
 
-avg = 0
-for i in range(0, len(My_Approach_bbox_iou_list), 1):
-    avg += sum(My_Approach_bbox_iou_list[i]) / len(My_Approach_bbox_iou_list[i])
-print("model_bbox")
-print(avg / len(My_Approach_bbox_iou_list))
-file1.writelines("model_bbox")
-file1.writelines("\n")
-file1.writelines(str(avg / len(My_Approach_bbox_iou_list)))
+# avg = 0
+# for i in range(0, len(My_Approach_bbox_iou_list), 1):
+#     avg += sum(My_Approach_bbox_iou_list[i]) / len(My_Approach_bbox_iou_list[i])
+# print("model_bbox")
+# print(avg / len(My_Approach_bbox_iou_list))
+# file1.writelines("model_bbox")
+# file1.writelines("\n")
+# file1.writelines(str(avg / len(My_Approach_bbox_iou_list)))
 
 file1.close()
 print(time.time() - time1)

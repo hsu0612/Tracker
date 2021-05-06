@@ -37,7 +37,10 @@ class AE_Segmentation2():
         torch.backends.cudnn.deterministic = True
         # foreground model
         self.foreground_model = FCNet_fore().to("cuda", dtype=torch.float32)
-    def train(self, image_batch, img_without_augmentation):
+        self.img_batch_memory = torch.zeros(100, 16, 3, 128, 128)
+        self.gt_batch_memory = torch.zeros(100, 16, 1, 128, 128)
+        self.index = 0
+    def train(self, image_batch, img_without_augmentation, grid):
         # data tarnsformation
         data_transformation = transforms.Compose([
                     transforms.ToTensor(),
@@ -100,10 +103,19 @@ class AE_Segmentation2():
         with torch.no_grad():
             pred, feature_map = self.background_model(img_without_augmentation.to("cuda", dtype=torch.float32))
 
+        grid_np = grid.detach().cpu().numpy()
+        grid_np = grid_np.squeeze()
+        grid_np_x = grid_np[:, :, 0]
+        grid_np_y = grid_np[:, :, 1]
+
         error_map = torch.abs(pred - img_without_augmentation.to("cuda", dtype=torch.float32))
         error_map = error_map.sum(axis = 1)
         error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
         threshold_map = np.where(error_map.cpu().detach().numpy() > 0.2, 1.0, 0.0)
+        threshold_map = np.where(grid_np_x > 1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_x < -1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_y > 1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_y < -1.0, 0.0, threshold_map)
         function.write_heat_map(threshold_map[0], 0, "./error_foreground_" + str(0) + "_")
         threshold_map = 255*threshold_map[0].astype(np.uint8)
         nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
@@ -121,6 +133,17 @@ class AE_Segmentation2():
                 mask_temp[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = mask[:, :, 32:96, 32:96]
 
         function.write_heat_map(mask_temp[7][0].detach().cpu().numpy(), 0, "./error_foreground2_" + str(0) + "_")
+
+        self.img_batch_memory[self.index] = image_batch.clone()
+        self.gt_batch_memory[self.index] = mask_temp.clone()
+        self.index += 1
+
+        if self.index > 3:
+            train_set = torch.cat((self.img_batch_memory[self.index-1], self.img_batch_memory[self.index-2], self.img_batch_memory[self.index-3]), 0)
+            gt_set = torch.cat((self.gt_batch_memory[self.index-1], self.gt_batch_memory[self.index-2], self.gt_batch_memory[self.index-3]), 0)
+        else:
+            train_set = image_batch.clone()
+            gt_set = mask_temp.clone()
         
         optimizer_fore = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
         # loss function init
@@ -129,17 +152,17 @@ class AE_Segmentation2():
         for iter in range(0, 1001, 1):
             # optimizer init
             optimizer_fore.zero_grad()                                                                                                                                                                                                                                                                                         
-            pred, feature_map = self.foreground_model(image_batch)
+            pred, feature_map = self.foreground_model(train_set.to("cuda", dtype=torch.float32))
 
-            loss = criterion_bec_loss(pred, mask_temp.to("cuda", dtype=torch.float32))
+            loss = criterion_bec_loss(pred, gt_set.to("cuda", dtype=torch.float32))
             loss.backward()
             optimizer_fore.step()
             if iter % 100 == 0:
                 print(loss)
 
     def inference(self, img_batch, num, grid):
-        with torch.no_grad():
-            pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
+        # with torch.no_grad():
+        #     pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
         
         with torch.no_grad():
             pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))

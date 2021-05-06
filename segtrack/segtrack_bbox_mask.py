@@ -53,5 +53,5 @@ for index, i in enumerate(ann_root_list):
 
 # video_mask_list = np.array(video_mask_list)
 # video_bbox_list = np.array(video_bbox_list)
-# # np.save("./segtrack/mask.npy", video_mask_list)
+# np.save("./segtrack/mask.npy", video_mask_list)
 # np.save("./segtrack/bbox.npy", video_bbox_list)

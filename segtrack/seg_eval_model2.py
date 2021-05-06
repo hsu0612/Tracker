@@ -17,7 +17,6 @@ sys.path.append('./')
 import utils.function as function
 from segmentation.grab_cut import Grabcut
 from segmentation.snake import Snake
-from segmentation.my_approach import AE_Segmentation
 from segmentation.my_approach_model2 import AE_Segmentation2
 
 # get data path
@@ -256,7 +255,7 @@ for i in range(0, len(img_list), 1):
         # assert False
         # gt_batch = gt_batch.mean(axis=1, keepdims=True)
         if j % 3 == 0:
-            My_Approach.train(img_batch, previous)
+            My_Approach.train(img_batch, previous, grid)
         result = My_Approach.inference(search, j, grid)
         
         iou_i = np.logical_and(result, mask_np)
