@@ -169,12 +169,15 @@ for i in range(0, len(img_list), 1):
         y_top = max(pred_t, 32)
         x_right = min(pred_r, 96)
         y_bottom = min(pred_b, 96)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (96 - 32) * (96 - 32)
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        if float(bb1_area + bb2_area - intersection_area) > 0.0:
-            bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        intersection_area = iw * ih
+        union_area = ((96 - 32 + 1.) * (96 - 32 + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
         
@@ -202,12 +205,15 @@ for i in range(0, len(img_list), 1):
         y_top = max(pred_t, 32)
         x_right = min(pred_r, 96)
         y_bottom = min(pred_b, 96)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (96 - 32) * (96 - 32)
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        if float(bb1_area + bb2_area - intersection_area) > 0.0:
-            bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        intersection_area = iw * ih
+        union_area = ((96 - 32 + 1.) * (96 - 32 + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
         
@@ -215,8 +221,9 @@ for i in range(0, len(img_list), 1):
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, torch.float32)
+        # if j > 56:
         My_Approach.train(img_batch, search, i, j)
-        result = My_Approach.inference(search, grid, j)
+        result = My_Approach.inference(search, grid, i, j)
         
         iou_i = np.logical_and(result, mask_np)
         iou_u = np.logical_or(result, mask_np)
@@ -237,12 +244,15 @@ for i in range(0, len(img_list), 1):
         y_top = max(pred_t, 32)
         x_right = min(pred_r, 96)
         y_bottom = min(pred_b, 96)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (96 - 32) * (96 - 32)
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        if float(bb1_area + bb2_area - intersection_area) > 0.0:
-            bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        intersection_area = iw * ih
+        union_area = ((96 - 32 + 1.) * (96 - 32 + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
 

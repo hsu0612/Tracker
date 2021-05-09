@@ -1,7 +1,7 @@
 import os
 
-out_list = os.listdir("./output/")
-out_list.remove('1620126833.1179667')
+out_list = os.listdir("./exp2/output/")
+# out_list.remove('1620126833.1179667')
 
 grab_mask_list = []
 grab_bbox_list = []
@@ -11,10 +11,10 @@ model_mask_list = []
 model_bbox_list = []
 
 for index, i in enumerate(out_list):
-    if index < 14:
-        continue
-    out_data_list = os.listdir("./output/" + i + "/")
-    f = open("./output/" + i + "/out.txt")
+    # if index < 14:
+    #     continue
+    out_data_list = os.listdir("./exp2/output/" + i + "/")
+    f = open("./exp2/output/" + i + "/out.txt")
     f.readline()
     grab_mask = f.readline()
     grab_mask_list.append(float(grab_mask[:-1]))

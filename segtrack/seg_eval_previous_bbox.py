@@ -199,12 +199,15 @@ for i in range(0, len(img_list), 1):
         y_top = max(pred_t, gt_t)
         x_right = min(pred_r, gt_r)
         y_bottom = min(pred_b, gt_b)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (gt_r - gt_l) * (gt_b - gt_t)
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        if float(bb1_area + bb2_area - intersection_area) > 0.0:
-            bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        intersection_area = iw * ih
+        union_area = ((gt_r - gt_l + 1.) * (gt_b - gt_t + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
         
@@ -232,12 +235,15 @@ for i in range(0, len(img_list), 1):
         y_top = max(pred_t, gt_t)
         x_right = min(pred_r, gt_r)
         y_bottom = min(pred_b, gt_b)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (gt_r - gt_l) * (gt_b - gt_t)
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        if float(bb1_area + bb2_area - intersection_area) > 0.0:
-            bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        intersection_area = iw * ih
+        union_area = ((gt_r - gt_l + 1.) * (gt_b - gt_t + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
         
@@ -245,8 +251,8 @@ for i in range(0, len(img_list), 1):
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
-        My_Approach.train(img_batch, previous, i, j)
-        result = My_Approach.inference(search, grid, j)
+        # My_Approach.train(img_batch, previous, i, j)
+        result = My_Approach.inference(search, grid, i, j)
         
         iou_i = np.logical_and(result, mask_np)
         iou_u = np.logical_or(result, mask_np)
@@ -267,12 +273,15 @@ for i in range(0, len(img_list), 1):
         y_top = max(pred_t, gt_t)
         x_right = min(pred_r, gt_r)
         y_bottom = min(pred_b, gt_b)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        bb1_area = (pred_r - pred_l) * (pred_b - pred_t)
-        bb2_area = (gt_r - gt_l) * (gt_b - gt_t)
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        if float(bb1_area + bb2_area - intersection_area) > 0.0:
-            bbox_iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        intersection_area = iw * ih
+        union_area = ((gt_r - gt_l + 1.) * (gt_b - gt_t + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
 
@@ -334,25 +343,25 @@ file1.writelines("\n")
 file1.writelines(str(avg / len(snake_bbox_iou_list)))
 file1.writelines("\n")
 
-# # model 1
-# avg = 0
-# for i in range(0, len(My_Approach_mask_iou_list), 1):
-#     avg += sum(My_Approach_mask_iou_list[i]) / len(My_Approach_mask_iou_list[i])
-# print("model_mask")
-# print(avg / len(My_Approach_mask_iou_list))
-# file1.writelines("model_mask")
-# file1.writelines("\n")
-# file1.writelines(str(avg / len(My_Approach_mask_iou_list)))
-# file1.writelines("\n")
+# model 1
+avg = 0
+for i in range(0, len(My_Approach_mask_iou_list), 1):
+    avg += sum(My_Approach_mask_iou_list[i]) / len(My_Approach_mask_iou_list[i])
+print("model_mask")
+print(avg / len(My_Approach_mask_iou_list))
+file1.writelines("model_mask")
+file1.writelines("\n")
+file1.writelines(str(avg / len(My_Approach_mask_iou_list)))
+file1.writelines("\n")
 
-# avg = 0
-# for i in range(0, len(My_Approach_bbox_iou_list), 1):
-#     avg += sum(My_Approach_bbox_iou_list[i]) / len(My_Approach_bbox_iou_list[i])
-# print("model_bbox")
-# print(avg / len(My_Approach_bbox_iou_list))
-# file1.writelines("model_bbox")
-# file1.writelines("\n")
-# file1.writelines(str(avg / len(My_Approach_bbox_iou_list)))
+avg = 0
+for i in range(0, len(My_Approach_bbox_iou_list), 1):
+    avg += sum(My_Approach_bbox_iou_list[i]) / len(My_Approach_bbox_iou_list[i])
+print("model_bbox")
+print(avg / len(My_Approach_bbox_iou_list))
+file1.writelines("model_bbox")
+file1.writelines("\n")
+file1.writelines(str(avg / len(My_Approach_bbox_iou_list)))
 
 file1.close()
 print(time.time() - time1)

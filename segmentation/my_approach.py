@@ -82,7 +82,10 @@ class AE_Segmentation():
             #     print(loss)
         torch.save(self.background_model, "./checkpoint/save_" + str(num1) + "_"+ str(num2) + ".pt")
 
-    def inference(self, img_without_augmentation, grid, num):
+    def inference(self, img_without_augmentation, grid, i, j):
+        # if j <= 56:
+        #     print(j)
+        self.background_model = torch.load("./exp2/checkpoint/save_" + str(i) + "_"+ str(j) + ".pt")
         with torch.no_grad():
             pred, feature_map = self.background_model(img_without_augmentation[:, :, :, :].to("cuda", dtype=torch.float32))
 
@@ -94,7 +97,7 @@ class AE_Segmentation():
         error_map = torch.abs(pred - img_without_augmentation.to("cuda", dtype=torch.float32))
         error_map = error_map.sum(axis = 1)
         error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
-        function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_background_" + str(num) + "_")
+        # function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_background_" + str(num) + "_")
         threshold_map = np.where(error_map.detach().cpu().numpy() > 0.2, 1.0, 0.0)
         threshold_map = np.where(grid_np_x > 1.0, 0.0, threshold_map)
         threshold_map = np.where(grid_np_x < -1.0, 0.0, threshold_map)
@@ -109,7 +112,7 @@ class AE_Segmentation():
             return  np.zeros_like(threshold_map)
         mask_temp = np.zeros_like(mask)
         mask_temp[32:96, 32:96] = mask[32:96, 32:96]
-        function.write_heat_map(mask, 0, "./threshold_background_" + str(num) + "_")
+        # function.write_heat_map(mask, 0, "./threshold_background_" + str(num) + "_")
 
         return mask*255
 
