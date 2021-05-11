@@ -1,23 +1,20 @@
 import os
 import sys
+import shutil
+import configparser
+import time
 import numpy as np
 import cv2
 from PIL import Image
 import torch
-import torch.optim as optim
 import torchvision
 from torchvision import transforms
-from skimage.color import gray2rgb
-from sklearn.metrics import jaccard_score
-import time
-import configparser
-import shutil
 # my function
 sys.path.append('./')
 import utils.function as function
 from segmentation.grab_cut import Grabcut
 from segmentation.snake import Snake
-from segmentation.my_approach_model2 import AE_Segmentation2
+from segmentation.my_approach_incremental import AE_Segmentation
 
 # get data path
 IMG_PATH = "D:/SegTrackv2/JPEGImages/"
@@ -98,8 +95,20 @@ data_transformation = transforms.Compose([
             transforms.ToTensor(),
             ])
 
+# grabcut
+grabcut = Grabcut()
+grabcut_mask_iou_list = []
+grabcut_mask_iou_sub_list = []
+grabcut_bbox_iou_list = []
+grabcut_bbox_iou_sub_list = []
+# snake
+snake = Snake()
+snake_mask_iou_list = []
+snake_mask_iou_sub_list = []
+snake_bbox_iou_list = []
+snake_bbox_iou_sub_list = []
 # model 1
-My_Approach = AE_Segmentation2()
+My_Approach = AE_Segmentation()
 My_Approach_mask_iou_list = []
 My_Approach_mask_iou_sub_list = []
 My_Approach_bbox_iou_list = []
@@ -109,7 +118,7 @@ time1 = time.time()
 for i in range(0, len(img_list), 1):
     if i < start_video_num:
         continue
-    for j in range(0, len(img_list[i]) - 1, 1):
+    for j in range(0, len(img_list[i]), 1):
         img = Image.open(img_list[i][j])
         img = img.convert('RGB')
         img = data_transformation(img)
@@ -121,39 +130,15 @@ for i in range(0, len(img_list), 1):
         gt_img = torch.unsqueeze(gt_img, 0)
         gt_img = gt_img.to(dtype=torch.float32)
         bbox = bbox_list[i][j]
-        next_bbox = bbox_list[i][j + 1]
         x, y, w, h = float(bbox[0]), float(bbox[1]) \
                 ,float(bbox[2]) - float(bbox[0]), float(bbox[3]) - float(bbox[1])
-
-        if j == 0:
-            img_save = img.clone()
-            gt_img_save = gt_img.clone()
-            pre_x, pre_y, pre_w, pre_h = x, y, w, h
-            continue
-
-        # grid previous
-        grid = function.get_grid(img_save.shape[3], img_save.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
-        grid = grid.to(dtype=torch.float32)
-        previous = torch.nn.functional.grid_sample(img_save, grid, mode="bilinear", padding_mode="zeros")
-        previous_pil = torchvision.transforms.ToPILImage()(previous[0].detach().cpu())
-        # grid current
-        grid = function.get_grid(img.shape[3], img.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
+        # grid
+        grid = function.get_grid(img.shape[3], img.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         search = torch.nn.functional.grid_sample(img, grid, mode="bilinear", padding_mode="zeros")
         search_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
         # search_pil.save("./img" + str(i) + "_" + str(j) + ".jpg")
-        # gt previous
-        grid = function.get_grid(gt_img_save.shape[3], gt_img_save.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
-        grid = grid.to(dtype=torch.float32)
-        previous_mask = torch.nn.functional.grid_sample(gt_img_save, grid, mode="bilinear", padding_mode="zeros")
-        previous_mask_pil = torchvision.transforms.ToPILImage()(previous_mask[0].detach().cpu())
-        # previous_mask_pil.save("./mask" + str(i) + "_" + str(j) + ".jpg")
-        previous_mask_np = np.array(previous_mask_pil)
-        previous_mask_np = previous_mask_np.mean(axis = 2)
-        previous_mask_np /= 255
-        previous_mask_np = previous_mask_np.astype(np.uint8)
-        # gt current
-        grid = function.get_grid(gt_img.shape[3], gt_img.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
+        grid = function.get_grid(gt_img.shape[3], gt_img.shape[2], x + w/2, y + h/2, 2*w, 2*h, 128, 128)
         grid = grid.to(dtype=torch.float32)
         mask = torch.nn.functional.grid_sample(gt_img, grid, mode="bilinear", padding_mode="zeros")
         mask_pil = torchvision.transforms.ToPILImage()(mask[0].detach().cpu())
@@ -162,63 +147,82 @@ for i in range(0, len(img_list), 1):
         mask_np = mask_np.mean(axis = 2)
         mask_np /= 255
         mask_np = mask_np.astype(np.uint8)
+        # grabcut
+        grabcut_result = grabcut.get_mask(np.array(search_pil))
+
+        iou_i = np.logical_and(grabcut_result, mask_np)
+        iou_u = np.logical_or(grabcut_result, mask_np)
+        iou_i = np.where(iou_i == True, 1, 0)
+        iou_u = np.where(iou_u == True, 1, 0)
+        if iou_u.sum() > 0:
+            iou = iou_i.sum() / iou_u.sum()
+        else:
+            iou = 0.0
+
+        grabcut_mask_iou_sub_list.append(iou)
 
         try:
-            gt_l, gt_t, gt_r, gt_b = function.get_x_y_w_h(mask_np)
+            pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(grabcut_result)
         except:
-            gt_l, gt_t, gt_r, gt_b = 0.0, 0.0, 0.0, 0.0
+            pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
+        x_left = max(pred_l, 32)
+        y_top = max(pred_t, 32)
+        x_right = min(pred_r, 96)
+        y_bottom = min(pred_b, 96)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
 
-        if j == 1:
-            mask_np1 = mask_np.copy()
-            gt_l1, gt_t1, gt_r1, gt_b1 = gt_l, gt_t, gt_r, gt_b
-            search1 = search.clone()
+        intersection_area = iw * ih
+        union_area = ((96 - 32 + 1.) * (96 - 32 + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
+        else:
+            bbox_iou = 1.0
+        
+        grabcut_bbox_iou_sub_list.append(bbox_iou)
+
+        # Snake
+        snake_result = snake.get_mask(np.array(search_pil))
+
+        iou_i = np.logical_and(snake_result, mask_np)
+        iou_u = np.logical_or(snake_result, mask_np)
+        iou_i = np.where(iou_i == True, 1, 0)
+        iou_u = np.where(iou_u == True, 1, 0)
+        if iou_u.sum() > 0:
+            iou = iou_i.sum() / iou_u.sum()
+        else:
+            iou = 0.0
+
+        snake_mask_iou_sub_list.append(iou)
+
+        try:
+            pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(snake_result)
+        except:
+            pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
+        x_left = max(pred_l, 32)
+        y_top = max(pred_t, 32)
+        x_right = min(pred_r, 96)
+        y_bottom = min(pred_b, 96)
+        iw = np.maximum(x_right - x_left + 1., 0.)
+        ih = np.maximum(y_bottom - y_top + 1., 0.)
+
+        intersection_area = iw * ih
+        union_area = ((96 - 32 + 1.) * (96 - 32 + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
+        if float(union_area) > 0.0:
+            bbox_iou = intersection_area / union_area
+        else:
+            bbox_iou = 1.0
+        
+        snake_bbox_iou_sub_list.append(bbox_iou)
 
         # Model 1
-        img_batch = function.get_image_batch_with_translate_augmentation(img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
-        # My_Approach.train(img_batch, previous, grid, i, j)
-
-        if j == int(len(img_list[i]) / 2):
-            result = My_Approach.inference(search1, grid, i, j)
-            iou_i = np.logical_and(result, mask_np1)
-            iou_u = np.logical_or(result, mask_np1)
-            iou_i = np.where(iou_i == True, 1, 0)
-            iou_u = np.where(iou_u == True, 1, 0)
-            if iou_u.sum() > 0:
-                iou = iou_i.sum() / iou_u.sum()
-            else:
-                iou = 0.0
-
-            file1.writelines("tenth_model_mask")
-            file1.writelines("\n")
-            file1.writelines(str(iou))
-            file1.writelines("\n")
-
-            try:
-                pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(result)
-            except:
-                pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-                pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-            x_left = max(pred_l, gt_l)
-            y_top = max(pred_t, gt_t)
-            x_right = min(pred_r, gt_r)
-            y_bottom = min(pred_b, gt_b)
-            iw = np.maximum(x_right - x_left + 1., 0.)
-            ih = np.maximum(y_bottom - y_top + 1., 0.)
-
-            intersection_area = iw * ih
-            union_area = ((gt_r - gt_l + 1.) * (gt_b - gt_t + 1.) +
-                (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
-                intersection_area)
-            if float(union_area) > 0.0:
-                bbox_iou = intersection_area / union_area
-            else:
-                bbox_iou = 1.0
-
-            file1.writelines("tenth_model_bbox")
-            file1.writelines("\n")
-            file1.writelines(str(bbox_iou))
-            file1.writelines("\n")
-
+        img_batch = function.get_image_batch_with_translate_augmentation(img, 4, x, y, w, 128, h, 128, torch.float32)
+        # if j > 56:
+        My_Approach.train(img_batch, search, i, j)
         result = My_Approach.inference(search, grid, i, j)
         
         iou_i = np.logical_and(result, mask_np)
@@ -230,51 +234,81 @@ for i in range(0, len(img_list), 1):
         else:
             iou = 0.0
 
-        if j == 1:
-            file1.writelines("first_model_mask")
-            file1.writelines("\n")
-            file1.writelines(str(iou))
-            file1.writelines("\n")
-
         My_Approach_mask_iou_sub_list.append(iou)
 
         try:
             pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(result)
         except:
             pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-        x_left = max(pred_l, gt_l)
-        y_top = max(pred_t, gt_t)
-        x_right = min(pred_r, gt_r)
-        y_bottom = min(pred_b, gt_b)
+        x_left = max(pred_l, 32)
+        y_top = max(pred_t, 32)
+        x_right = min(pred_r, 96)
+        y_bottom = min(pred_b, 96)
         iw = np.maximum(x_right - x_left + 1., 0.)
         ih = np.maximum(y_bottom - y_top + 1., 0.)
 
         intersection_area = iw * ih
-        union_area = ((gt_r - gt_l + 1.) * (gt_b - gt_t + 1.) +
-            (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
-            intersection_area)
+        union_area = ((96 - 32 + 1.) * (96 - 32 + 1.) +
+               (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
+               intersection_area)
         if float(union_area) > 0.0:
             bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
 
-        if j == 1:
-            file1.writelines("first_model_bbox")
-            file1.writelines("\n")
-            file1.writelines(str(bbox_iou))
-            file1.writelines("\n")
-
         My_Approach_bbox_iou_sub_list.append(bbox_iou)
 
-        img_save = img.clone()
-        gt_img_save = gt_img.clone()
-        pre_x, pre_y, pre_w, pre_h = x, y, w, h
-
+    grabcut_bbox_iou_list.append(grabcut_bbox_iou_sub_list)
+    grabcut_mask_iou_list.append(grabcut_mask_iou_sub_list)
+    snake_mask_iou_list.append(snake_mask_iou_sub_list)
+    snake_bbox_iou_list.append(snake_bbox_iou_sub_list)
     My_Approach_mask_iou_list.append(My_Approach_mask_iou_sub_list)
     My_Approach_bbox_iou_list.append(My_Approach_bbox_iou_sub_list)
     print("finish")
     if i == end_video_num:
        break
+
+# grabcut
+avg = 0
+for i in range(0, len(grabcut_mask_iou_list), 1):
+    avg += sum(grabcut_mask_iou_list[i]) / len(grabcut_mask_iou_list[i])
+print("grab_mask")
+print(avg / len(grabcut_mask_iou_list))
+file1.writelines("grab_mask")
+file1.writelines("\n")
+file1.writelines(str(avg / len(grabcut_mask_iou_list)))
+file1.writelines("\n")
+
+avg = 0
+for i in range(0, len(grabcut_bbox_iou_list), 1):
+    avg += sum(grabcut_bbox_iou_list[i]) / len(grabcut_bbox_iou_list[i])
+print("grab_bbox")
+print(avg / len(grabcut_bbox_iou_list))
+file1.writelines("grab_bbox")
+file1.writelines("\n")
+file1.writelines(str(avg / len(grabcut_bbox_iou_list)))
+file1.writelines("\n")
+
+# snake
+avg = 0
+for i in range(0, len(snake_mask_iou_list), 1):
+    avg += sum(snake_mask_iou_list[i]) / len(snake_mask_iou_list[i])
+print("snake_mask")
+print(avg / len(snake_mask_iou_list))
+file1.writelines("snake_mask")
+file1.writelines("\n")
+file1.writelines(str(avg / len(snake_mask_iou_list)))
+file1.writelines("\n")
+
+avg = 0
+for i in range(0, len(snake_bbox_iou_list), 1):
+    avg += sum(snake_bbox_iou_list[i]) / len(snake_bbox_iou_list[i])
+print("snake_bbox")
+print(avg / len(snake_bbox_iou_list))
+file1.writelines("snake_bbox")
+file1.writelines("\n")
+file1.writelines(str(avg / len(snake_bbox_iou_list)))
+file1.writelines("\n")
 
 # model 1
 avg = 0

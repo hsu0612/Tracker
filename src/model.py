@@ -15,6 +15,7 @@ import torchvision
 from torchvision import models
 from torchvision import transforms
 import torch.nn.functional as F
+
 class ConvBlock(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size, stride, padding):
         # Necessary
@@ -103,6 +104,79 @@ class FCNet(nn.Module):
         output = self.decoder5(output)
         output = self.sigmoid(output)
         return output, feature_map
+
+class VAENet(nn.Module):
+    def __init__(self):
+        # necessary
+        super().__init__()
+        channel_1 = 32
+        channel_2 = 64
+        channel_3 = 4
+        self.encoder1 = ConvBlock(3, channel_1, kernel_size=3, stride=1, padding=1)
+        self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
+        self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
+        self.fc1 = nn.Flatten()
+        # VAE
+        self.fc22 = nn.Linear(1024, 32)
+        self.fc23 = nn.Linear(1024, 32)
+        self.fc3 = nn.Linear(32, 1024)
+        self.decoder1 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder2 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1)
+        self.decoder3 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1)
+        self.decoder4 = DeConvBlock(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.decoder5 = DeConvBlock(channel_1, 3, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid() 
+        self.bn = nn.BatchNorm2d(channel_2)
+    # VAE
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5*logvar)
+        eps = torch.randn_like(std)
+        return mu + eps*std
+    def forward(self, x): 
+        output = self.encoder1(x)
+        output = self.encoder2(output)
+        output = self.encoder3(output)
+        temp_1 = output.shape[1]
+        temp_2 = output.shape[2]
+        temp_3 = output.shape[3]
+        output = self.fc1(output)
+        output_fc1 = output
+        # mean, var
+        mu = self.fc22(output)
+        logvar = self.fc23(output)
+        output = self.reparameterize(mu, logvar)
+        output = self.fc3(output)
+        output = output.reshape(-1, temp_1, temp_2, temp_3)
+        output = self.decoder1(output)
+        output = self.relu(output)
+        output = self.decoder2(output)
+        output = self.bn(output)
+        output = self.relu(output)
+        output = self.decoder3(output)
+        output = self.bn(output)
+        output = self.relu(output)
+        output = self.decoder4(output)
+        output = self.relu(output)
+        output = self.decoder5(output)
+        output = self.sigmoid(output)
+        # inference
+        inference = self.fc3(mu)
+        inference = inference.reshape(-1, temp_1, temp_2, temp_3)
+        inference = self.decoder1(inference)
+        inference = self.relu(inference)
+        inference = self.decoder2(inference)
+        inference = self.bn(inference)
+        inference = self.relu(inference)
+        inference = self.decoder3(inference)
+        inference = self.bn(inference)
+        inference = self.relu(inference)
+        inference = self.decoder4(inference)
+        inference = self.relu(inference)
+        inference = self.decoder5(inference)
+        inference = self.sigmoid(inference)
+
+        return output, mu, logvar, inference, output_fc1
 
 class FCNet_fore(nn.Module):
     def __init__(self):
