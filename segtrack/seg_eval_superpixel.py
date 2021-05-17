@@ -17,7 +17,7 @@ sys.path.append('./')
 import utils.function as function
 from segmentation.grab_cut import Grabcut
 from segmentation.snake import Snake
-from segmentation.my_approach_incremental import AE_Segmentation2
+from segmentation.my_approach_superpixel import AE_Segmentation2
 
 # get data path
 IMG_PATH = "D:/SegTrackv2/JPEGImages/"
@@ -177,51 +177,12 @@ for i in range(0, len(img_list), 1):
 
         # Model 1
         img_batch = function.get_image_batch_with_translate_augmentation(img_save, 4, pre_x, pre_y, pre_w, 128, pre_h, 128, torch.float32)
-        My_Approach.train(img_batch, previous, grid, i, j)
+        flag = My_Approach.train(img_batch, previous, grid, i, j)
 
-        if j == int(len(img_list[i]) / 2):
-            result = My_Approach.inference(search1, grid_save, i, j - 1)
-            iou_i = np.logical_and(result, mask_np1)
-            iou_u = np.logical_or(result, mask_np1)
-            iou_i = np.where(iou_i == True, 1, 0)
-            iou_u = np.where(iou_u == True, 1, 0)
-            if iou_u.sum() > 0:
-                iou = iou_i.sum() / iou_u.sum()
-            else:
-                iou = 0.0
-
-            file1.writelines("tenth_model_mask")
-            file1.writelines("\n")
-            file1.writelines(str(iou))
-            file1.writelines("\n")
-
-            try:
-                pred_l, pred_t, pred_r, pred_b = function.get_x_y_w_h(result)
-            except:
-                pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-                pred_l, pred_t, pred_r, pred_b = 0.0, 0.0, 0.0, 0.0
-            x_left = max(pred_l, gt_l)
-            y_top = max(pred_t, gt_t)
-            x_right = min(pred_r, gt_r)
-            y_bottom = min(pred_b, gt_b)
-            iw = np.maximum(x_right - x_left + 1., 0.)
-            ih = np.maximum(y_bottom - y_top + 1., 0.)
-
-            intersection_area = iw * ih
-            union_area = ((gt_r - gt_l + 1.) * (gt_b - gt_t + 1.) +
-                (pred_r - pred_l + 1.) * (pred_b - pred_t + 1.) -
-                intersection_area)
-            if float(union_area) > 0.0:
-                bbox_iou = intersection_area / union_area
-            else:
-                bbox_iou = 1.0
-
-            file1.writelines("tenth_model_bbox")
-            file1.writelines("\n")
-            file1.writelines(str(bbox_iou))
-            file1.writelines("\n")
-
-        result = My_Approach.inference(search, grid, i, j)
+        if flag:
+            result = My_Approach.inference_fore(search, grid, i, j)
+        else:
+            result = My_Approach.inference(search, grid, i, j)
         
         iou_i = np.logical_and(result, mask_np)
         iou_u = np.logical_or(result, mask_np)
@@ -231,12 +192,6 @@ for i in range(0, len(img_list), 1):
             iou = iou_i.sum() / iou_u.sum()
         else:
             iou = 0.0
-
-        if j == 1:
-            file1.writelines("first_model_mask")
-            file1.writelines("\n")
-            file1.writelines(str(iou))
-            file1.writelines("\n")
 
         My_Approach_mask_iou_sub_list.append(iou)
 
@@ -259,12 +214,6 @@ for i in range(0, len(img_list), 1):
             bbox_iou = intersection_area / union_area
         else:
             bbox_iou = 1.0
-
-        if j == 1:
-            file1.writelines("first_model_bbox")
-            file1.writelines("\n")
-            file1.writelines(str(bbox_iou))
-            file1.writelines("\n")
 
         My_Approach_bbox_iou_sub_list.append(bbox_iou)
 

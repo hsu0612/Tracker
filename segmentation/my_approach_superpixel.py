@@ -11,6 +11,7 @@ import torch.optim as optim
 import torchvision
 from torchvision import transforms
 import argparse
+from skimage.segmentation import felzenszwalb, slic, quickshift, watershed
 sys.path.append('./')
 # mylib
 from src.model import FCNet
@@ -112,119 +113,102 @@ class AE_Segmentation2():
         threshold_map = 255*threshold_map[0].astype(np.uint8)
         nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
         lblareas = stats[1:, cv2.CC_STAT_AREA]
-        if (np.array(lblareas).max() < 410):
-            print(str(num1) + "and" + str(num2))
-            print(np.array(lblareas).max())
-        mask = np.where(labels == np.argmax(np.array(lblareas))+1, 255, 0).astype(np.uint8)
-        mask = data_transformation(mask)
-        mask = mask.unsqueeze(0)
-        mask_pil = torchvision.transforms.ToPILImage()(mask[0].detach().cpu())
-        # mask_pil.save("./img" + ".jpg")
-        mask_temp = torch.zeros((16, 1, 128, 128))
-        for index1, i in enumerate(range(-32, 32, 16)):
-            for index2, j in enumerate(range(-32, 32, 16)):
-                mask_temp[index1*4+index2, :, 32+j:96+j, 32+i:96+i] = mask[:, :, 32:96, 32:96]
+        # if True:
+        if (np.array(lblareas).max() < 1024):
+            self.foreground_model = FCNet_fore().to("cuda:0", dtype=torch.float32)
+            optimizer = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
+            segments_slic = slic(search_pil, n_segments=50, compactness=10, sigma=1, start_label=1)
 
-        # function.write_heat_map(mask_temp[7][0].detach().cpu().numpy(), 0, "./error_foreground2_" + str(0) + "_")
+            superpixel_mask = np.zeros((128, 128), dtype=int)
+            superpixel_mask = superpixel_mask
+            superpixel_mask[32:96, 32:96] = segments_slic[32:96, 32:96].copy()
 
-        # self.img_batch_memory[self.index] = image_batch.clone()
-        # self.gt_batch_memory[self.index] = mask_temp.clone()
-        # self.index += 1
+            superpixel_mask_2 = segments_slic.copy()
+            superpixel_mask_2[32:96, 32:96] = 0.0
 
-        # if self.index > 3:
-        #     train_set = torch.cat((self.img_batch_memory[self.index-1], self.img_batch_memory[self.index-2], self.img_batch_memory[self.index-3]), 0)
-        #     gt_set = torch.cat((self.gt_batch_memory[self.index-1], self.gt_batch_memory[self.index-2], self.gt_batch_memory[self.index-3]), 0)
-        # else:
-        #     train_set = image_batch.clone()
-        #     gt_set = mask_temp.clone()
-        train_set = image_batch.clone()
-        gt_set = mask_temp.clone()
+            for i in range(0, segments_slic.max() + 1, 1):
+                if np.count_nonzero(superpixel_mask_2 == i) != 0:
+                    superpixel_mask[superpixel_mask == i] = 0
 
-        # # foreground model
-        # self.foreground_model = FCNet().to("cuda:0", dtype=torch.float32)
+            superpixel_mask[superpixel_mask > 0] = 1.0
+            superpixel_mask = superpixel_mask.astype(np.float32)
 
-        # optimizer_fore = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
-        # # fore
-        # for iter in range(0, 1001, 1):
-        #     # noise_r = torch.normal((rgb[:32, :, 0].mean()/255 + rgb[96:, :, 0].mean()/255 + rgb[32:96, :32, 0].mean()/255 + rgb[32:96, 96:, 0].mean()/255).mean(), std=1.0, size=(1, 1, 128, 128)).to("cuda:0", dtype=torch.float32)
-        #     # noise_g = torch.normal((rgb[:32, :, 1].mean()/255 + rgb[96:, :, 1].mean()/255 + rgb[32:96, :32, 1].mean()/255 + rgb[32:96, 96:, 1].mean()/255).mean(), std=1.0, size=(1, 1, 128, 128)).to("cuda:0", dtype=torch.float32)
-        #     # noise_b = torch.normal((rgb[:32, :, 2].mean()/255 + rgb[96:, :, 2].mean()/255 + rgb[32:96, :32, 2].mean()/255 + rgb[32:96, 96:, 2].mean()/255).mean(), std=1.0, size=(1, 1, 128, 128)).to("cuda:0", dtype=torch.float32)
-        #     noise_r = torch.normal(rgb[32:96, 32:96, 0].mean()/255, std=1.0, size=(1, 1, 128, 128)).to("cuda:0", dtype=torch.float32)
-        #     noise_g = torch.normal(rgb[32:96, 32:96, 0].mean()/255, std=1.0, size=(1, 1, 128, 128)).to("cuda:0", dtype=torch.float32)
-        #     noise_b = torch.normal(rgb[32:96, 32:96, 0].mean()/255, std=1.0, size=(1, 1, 128, 128)).to("cuda:0", dtype=torch.float32)
-        #     # optimizer init
-        #     optimizer_fore.zero_grad()                                                                                                                                                                                                                                                                                                                                           
-        #     # background diff
-        #     img_with_noise = train_set.clone()
-        #     for index1, i in enumerate(range(-32, 32, 16)):
-        #         for index2, j in enumerate(range(-32, 32, 16)):
-        #             noise_r_clone = torch.where(gt_set[index1*4+index2, 0, :, :].to("cuda:0", dtype=torch.float32) == 0, noise_r, img_with_noise[index1*4+index2, 0].to("cuda:0", dtype=torch.float32))
-        #             noise_g_clone = torch.where(gt_set[index1*4+index2, 0, :, :].to("cuda:0", dtype=torch.float32) == 0, noise_g, img_with_noise[index1*4+index2, 1].to("cuda:0", dtype=torch.float32))
-        #             noise_b_clone = torch.where(gt_set[index1*4+index2, 0, :, :].to("cuda:0", dtype=torch.float32) == 0, noise_b, img_with_noise[index1*4+index2, 2].to("cuda:0", dtype=torch.float32))
-        #             img_with_noise[index1*4+index2, 0, :, :] = noise_r_clone
-        #             img_with_noise[index1*4+index2, 1, :, :] = noise_g_clone
-        #             img_with_noise[index1*4+index2, 2, :, :] = noise_b_clone
-        #             # pred_pil = torchvision.transforms.ToPILImage()(img_with_noise[index1*4+index2].detach().cpu())
-        #             # pred_pil.save("./pred_img_with_foreground_" + str(index1) + "_" + str(index2) + ".jpg")
+            mask_batch = np.zeros((128, 128, 16))
 
-        #     pred, feature_map = self.foreground_model(train_set.to("cuda:0", dtype=torch.float32))
-        #     # pred_pil = torchvision.transforms.ToPILImage()(img_with_noise[0].detach().cpu())
-        #     # pred_pil.save("./pred_img_with_foreground_" + str(num2) + "_" + str(0) + ".jpg")
-        #     foreground_diff = torch.abs(pred - img_with_noise)
-        #     foreground_diff_loss = foreground_diff.mean()
-        #     # mask rec
-        #     pred_mask, feature_map = self.foreground_model(train_set.to("cuda:0", dtype=torch.float32))
-        #     mask_rec = torch.abs(pred_mask - train_set.to("cuda:0", dtype=torch.float32))
-        #     mask_rec = mask_rec * gt_set.to("cuda:0", dtype=torch.float32)
-        #     mask_rec_loss = mask_rec.mean()
+            for index1, i in enumerate(range(-32, 32, 16)):
+                for index2, j in enumerate(range(-32, 32, 16)):
+                    mask_batch[32+j:96+j, 32+i:96+i, index1*4+index2] = superpixel_mask[32:96, 32:96]
 
-        #     pred, feature_map = self.foreground_model(train_set.to("cuda:0", dtype=torch.float32))
-        #     foreground_diff = 1.0 - torch.abs(pred - train_set.to("cuda:0", dtype=torch.float32))
-        #     foreground_diff[:, :, 32:96, 32:96] = 0.0
-        #     background_diff_loss = foreground_diff.mean()
+            mask_batch = data_transformation(mask_batch)
+            mask_batch = mask_batch.unsqueeze(1).to("cuda:0", dtype=torch.float32)
 
-        #     loss = foreground_diff_loss + mask_rec_loss + background_diff_loss
-        #     loss.backward()
-        #     optimizer_fore.step()
-        #     if iter % 100 == 0:
-        #         print(loss)
+            criterion_bec_loss = nn.BCELoss()
+
+            for iter in range(0, 1001, 1):
+                # noise_r = torch.normal(rgb[32:96, 32:96, 0].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
+                # noise_g = torch.normal(rgb[32:96, 32:96, 1].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
+                # noise_b = torch.normal(rgb[32:96, 32:96, 2].mean()/255, std=1.0, size=(1, 1, 64, 64)).to("cuda", dtype=torch.float32)
+                # optimizer init
+                optimizer.zero_grad()                                                                                                                                                                                                                                                                                                                                             
+                # background diff
+                # img_with_noise = image_batch.clone()
+                # for index1, i in enumerate(range(-32, 32, 16)):
+                #     for index2, j in enumerate(range(-32, 32, 16)):
+                #         img_with_noise[index1*4+index2, 0, 32+j:96+j, 32+i:96+i] = noise_r
+                #         img_with_noise[index1*4+index2, 1, 32+j:96+j, 32+i:96+i] = noise_g
+                #         img_with_noise[index1*4+index2, 2, 32+j:96+j, 32+i:96+i] = noise_b
+                # pred, feature_map = self.background_model(image_batch)
+                # background_diff = torch.abs(pred - img_with_noise)
+                # background_diff_loss = background_diff.mean()
+                # mask rec
+                pred_mask, feature_map = self.foreground_model(image_batch)
+                loss = criterion_bec_loss(pred_mask, mask_batch)
+                loss.backward()
+                optimizer.step()
+                if iter % 100 == 0:
+                    print(loss)
+            torch.save(self.foreground_model, "./checkpoint/foreground_save_" + str(num1) + "_"+ str(num2) + ".pt")
+            return True
+        else:
+            return False
+
+    def inference_fore(self, img_batch, grid, num1, num2):
+        # with torch.no_grad():
+        #     pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
         
-        # torch.save(self.foreground_model, "./checkpoint/foreground_save_" + str(num1) + "_"+ str(num2) + ".pt")
+        with torch.no_grad():
+            pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda:0", dtype=torch.float32))
+        pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
+        # pred_pil.save("./pred_img_with_foreround_" + str(num1) + "_" + str(num2) + ".jpg")
+        pred_np = np.array(pred_pil)[0][0]
+        pred_np_temp = np.zeros_like(pred_np)
 
-    # def inference(self, img_batch, grid, num1, num2):
-    #     self.foreground_model = torch.load("./checkpoint/foreground_save_" + str(num1) + "_"+ str(num2) + ".pt")
-    #     with torch.no_grad():
-    #         pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda:0", dtype=torch.float32))
-    #     pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-    #     pred_pil.save("./pred_img_with_foreground_" + str(num1) + "_" + str(num2) + ".jpg")
+        grid_np = grid.detach().cpu().numpy()
+        grid_np = grid_np.squeeze()
+        grid_np_x = grid_np[:, :, 0]
+        grid_np_y = grid_np[:, :, 1]
 
-    #     grid_np = grid.detach().cpu().numpy()
-    #     grid_np = grid_np.squeeze()
-    #     grid_np_x = grid_np[:, :, 0]
-    #     grid_np_y = grid_np[:, :, 1]
+        # error_map = torch.abs(pred - img_batch.to("cuda", dtype=torch.float32))
+        # error_map = error_map.sum(axis = 1)
+        # error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
+        # function.write_heat_map(pred[0][0].detach().cpu().numpy(), 0, "./error_foreground_" + str(num) + "_")
+        threshold_map = np.where(pred.detach().cpu().numpy() > 0.5, 1.0, 0.0)
+        threshold_map = np.where(grid_np_x > 1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_x < -1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_y > 1.0, 0.0, threshold_map)
+        threshold_map = np.where(grid_np_y < -1.0, 0.0, threshold_map)
+        threshold_map = 255*threshold_map[0][0].astype(np.uint8)
+        nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
+        lblareas = stats[1:, cv2.CC_STAT_AREA]
+        try:
+            mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
+        except:
+            return  np.zeros_like(threshold_map)
+        mask_temp = np.zeros_like(mask)
+        mask_temp[32:96, 32:96] = mask[32:96, 32:96]
+        # function.write_heat_map(mask, 0, "./threshold_background_" + str(num) + "_")
 
-    #     error_map = 1.0 - torch.abs(pred - img_batch.to("cuda:0", dtype=torch.float32))
-    #     error_map = error_map.sum(axis = 1)
-    #     error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
-    #     function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_foreground_" + str(num1) + "_" + str(num2))
-    #     threshold_map = np.where(error_map.detach().cpu().numpy() > 0.8, 1.0, 0.0)
-    #     threshold_map = np.where(grid_np_x > 1.0, 0.0, threshold_map)
-    #     threshold_map = np.where(grid_np_x < -1.0, 0.0, threshold_map)
-    #     threshold_map = np.where(grid_np_y > 1.0, 0.0, threshold_map)
-    #     threshold_map = np.where(grid_np_y < -1.0, 0.0, threshold_map)
-    #     threshold_map = 255*threshold_map[0].astype(np.uint8)
-    #     nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
-    #     lblareas = stats[1:, cv2.CC_STAT_AREA]
-    #     try:
-    #         mask = np.where(labels == np.argmax(np.array(lblareas))+1, 1.0, 0).astype(np.uint8)
-    #     except:
-    #         return  np.zeros_like(threshold_map)
-    #     mask_temp = np.zeros_like(mask)
-    #     mask_temp[32:96, 32:96] = mask[32:96, 32:96]
-    #     function.write_heat_map(mask, 0, "./threshold_foreground_" + str(num1) + "_" + str(num2))
-    #     # assert False
-
-    #     return mask*255
+        return mask*255
     def inference(self, img_without_augmentation, grid, i, j):
         # if j <= 56:
         #     print(j)
@@ -233,7 +217,7 @@ class AE_Segmentation2():
         with torch.no_grad():
             pred, feature_map = self.background_model(img_without_augmentation[:, :, :, :].to("cuda:0", dtype=torch.float32))
         pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
-        pred_pil.save("./pred_img_with_foreground_" + str(i) + "_" + str(j) + ".jpg")
+        # pred_pil.save("./pred_img_with_foreground_" + str(i) + "_" + str(j) + ".jpg")
 
         grid_np = grid.detach().cpu().numpy()
         grid_np = grid_np.squeeze()
@@ -243,7 +227,7 @@ class AE_Segmentation2():
         error_map = torch.abs(pred - img_without_augmentation.to("cuda:0", dtype=torch.float32))
         error_map = error_map.sum(axis = 1)
         error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
-        function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_background_" + str(i) + "_" + str(j))
+        # function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_background_" + str(i) + "_" + str(j))
         threshold_map = np.where(error_map.detach().cpu().numpy() > 0.2, 1.0, 0.0)
         threshold_map = np.where(grid_np_x > 1.0, 0.0, threshold_map)
         threshold_map = np.where(grid_np_x < -1.0, 0.0, threshold_map)
@@ -258,7 +242,7 @@ class AE_Segmentation2():
             return  np.zeros_like(threshold_map)
         mask_temp = np.zeros_like(mask)
         mask_temp[32:96, 32:96] = mask[32:96, 32:96]
-        function.write_heat_map(mask, 0, "./threshold_background_" + str(i) + "_" + str(j))
+        # function.write_heat_map(mask, 0, "./threshold_background_" + str(i) + "_" + str(j))
 
         return mask*255
 
