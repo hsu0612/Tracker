@@ -129,6 +129,8 @@ for i in range(0, len(img_list), 1):
             img_save = img.clone()
             gt_img_save = gt_img.clone()
             pre_x, pre_y, pre_w, pre_h = x, y, w, h
+            grid_save = function.get_grid(img_save.shape[3], img_save.shape[2], pre_x + pre_w/2, pre_y + pre_h/2, 2*pre_w, 2*pre_h, 128, 128)
+            grid_save = grid_save.to(dtype=torch.float32)
             continue
 
         # grid previous
@@ -178,7 +180,8 @@ for i in range(0, len(img_list), 1):
         # My_Approach.train(img_batch, previous, grid, i, j)
 
         if j == int(len(img_list[i]) / 2):
-            result = My_Approach.inference(search1, grid, i, j)
+            print(j)
+            result = My_Approach.inference(search1, grid_save, i, j-1)
             iou_i = np.logical_and(result, mask_np1)
             iou_u = np.logical_or(result, mask_np1)
             iou_i = np.where(iou_i == True, 1, 0)
