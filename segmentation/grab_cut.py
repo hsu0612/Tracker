@@ -18,7 +18,7 @@ class Grabcut():
         return mask2
 
 if __name__ == '__main__':
-    img = np.array(cv2.imread('./pred_img_with_foreground_2_1.jpg'))
+    img = np.array(cv2.imread('./test2.jpg'))
     grabcut = Grabcut()
     mask = grabcut.get_mask(img)
     img = img*mask[:,:,np.newaxis]

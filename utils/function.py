@@ -81,7 +81,7 @@ def get_gt_batch_with_translate_augmentation(img, batch_size, x, y, w, grid_w, h
 # in : numpy(float), out: int
 def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, data_type, model_foreground, search):
     
-    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map)
+    nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshold_map_seg)
     lblareas = stats[1:, cv2.CC_STAT_AREA]
     try:
         pred_center_x, pred_center_y = centroids[np.argmax(np.array(lblareas)) + 1]
@@ -103,17 +103,40 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
     # img_pil_d = ImageDraw.Draw(img_pil)
     # img_pil_d.rectangle([pred_x, pred_y, pred_x+pred_w, pred_y+pred_h], outline ="red")
     # img_pil.save("./mask_" + str(0) + ".jpg")
-    # assert False
+
+    # pred_center_x = pred_x + pred_w/2
+    # pred_center_y = pred_y + pred_h/2
+    new_center_x, new_center_y = (pred_center_x*2*w/128) + (x - 1/2*w), (pred_center_y*2*h/128) + (y - 1/2*h)
 
     # magic
     if abs((new_w - w) / img.shape[2]) > 0.025:
-        w = int(new_w*0.1 + w*0.9)
+        w = int(new_w*0.5 + w*0.5)
     else:
         w = int(new_w)
     if abs((new_h - h) / img.shape[3]) > 0.025:
-        h = int(new_h*0.1 + h*0.9)
+        h = int(new_h*0.5 + h*0.5)
     else:
         h = int(new_h)
+
+    # w = int(new_w)
+    # h = int(new_h)
+
+    if w > img.shape[2]:
+        w = img.shape[2]
+    if h > img.shape[3]:
+        h = img.shape[3]
+
+    # x = new_center_x - w/2
+    # y = new_center_y - h/2
+
+    if abs((new_center_x - w/2 - x) / img.shape[2]) > 0.025:
+        x = int((new_center_x - w/2)*0.5 + x*0.5)
+    else:
+        x = new_center_x - w/2
+    if abs((new_center_y - h/2 - y) / img.shape[3]) > 0.025:
+        y = int((new_center_y - h/2)*0.5 + y*0.5)
+    else:
+        y = new_center_y - h/2
 
     # # scale list
     # factor_list = np.array([1.0, 0.98, 1.02, 0.98*0.98, 1.02*1.02])
@@ -140,8 +163,8 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
     # w = new_w
     # h = new_h
 
-    x = new_center_x - w/2
-    y = new_center_y - h/2
+    # x = new_center_x - w/2
+    # y = new_center_y - h/2
     # x = new_x
     # y = new_y
     return x, y, w, h, True

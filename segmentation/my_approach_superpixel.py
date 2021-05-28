@@ -27,7 +27,7 @@ class AE_Segmentation2():
         torch.cuda.manual_seed_all(999)
         torch.backends.cudnn.deterministic = True
         # foreground model
-        self.foreground_model = FCNet().to("cuda:0", dtype=torch.float32)
+        self.foreground_model = FCNet().to("cuda:1", dtype=torch.float32)
         # self.img_batch_memory = torch.zeros(100, 16, 3, 128, 128)
         # self.gt_batch_memory = torch.zeros(100, 16, 1, 128, 128)
         self.index = 0
@@ -37,10 +37,10 @@ class AE_Segmentation2():
                     transforms.ToTensor(),
                     ])
         # background model
-        self.background_model = FCNet().to("cuda:0", dtype=torch.float32)
+        self.background_model = FCNet().to("cuda:1", dtype=torch.float32)
         optimizer = torch.optim.Adam(self.background_model.parameters(), lr = 1e-4)
-        image_batch = image_batch.to("cuda:0", dtype=torch.float32)
-        img_without_augmentation = img_without_augmentation.to("cuda:0", dtype=torch.float32)
+        image_batch = image_batch.to("cuda:1", dtype=torch.float32)
+        img_without_augmentation = img_without_augmentation.to("cuda:1", dtype=torch.float32)
         
         grabcut = Grabcut()
         mask_batch = np.zeros((128, 128, 16))
@@ -52,7 +52,7 @@ class AE_Segmentation2():
                 mask_batch[32+j:96+j, 32+i:96+i, index1*4+index2] = mask[32:96, 32:96]
 
         mask_batch = data_transformation(mask_batch)
-        mask_batch = mask_batch.unsqueeze(1).to("cuda:0", dtype=torch.float32)
+        mask_batch = mask_batch.unsqueeze(1).to("cuda:1", dtype=torch.float32)
 
         img_pil = torchvision.transforms.ToPILImage()(img_without_augmentation[0].detach().cpu())
         img_np = np.array(img_pil)
@@ -91,17 +91,17 @@ class AE_Segmentation2():
         #         print(loss)
         # torch.save(self.background_model, "./checkpoint/background_save_" + str(num1) + "_"+ str(num2) + ".pt")
         self.background_model = torch.load("./exp2/checkpoint/save_" + str(num1) + "_"+ str(num2) + ".pt")
-        self.background_model = self.background_model.to("cuda:0", dtype=torch.float32)
+        self.background_model = self.background_model.to("cuda:1", dtype=torch.float32)
         # inference
         with torch.no_grad():
-            pred, feature_map = self.background_model(img_without_augmentation.to("cuda:0", dtype=torch.float32))
+            pred, feature_map = self.background_model(img_without_augmentation.to("cuda:1", dtype=torch.float32))
 
         grid_np = grid.detach().cpu().numpy()
         grid_np = grid_np.squeeze()
         grid_np_x = grid_np[:, :, 0]
         grid_np_y = grid_np[:, :, 1]
 
-        error_map = torch.abs(pred - img_without_augmentation.to("cuda:0", dtype=torch.float32))
+        error_map = torch.abs(pred - img_without_augmentation.to("cuda:1", dtype=torch.float32))
         error_map = error_map.sum(axis = 1)
         error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
         threshold_map = np.where(error_map.cpu().detach().numpy() > 0.2, 1.0, 0.0)
@@ -115,7 +115,7 @@ class AE_Segmentation2():
         lblareas = stats[1:, cv2.CC_STAT_AREA]
         # if True:
         if (np.array(lblareas).max() < 1024):
-            self.foreground_model = FCNet_fore().to("cuda:0", dtype=torch.float32)
+            self.foreground_model = FCNet_fore().to("cuda:1", dtype=torch.float32)
             optimizer = torch.optim.Adam(self.foreground_model.parameters(), lr = 1e-4)
             segments_slic = slic(search_pil, n_segments=50, compactness=10, sigma=1, start_label=1)
 
@@ -140,7 +140,7 @@ class AE_Segmentation2():
                     mask_batch[32+j:96+j, 32+i:96+i, index1*4+index2] = superpixel_mask[32:96, 32:96]
 
             mask_batch = data_transformation(mask_batch)
-            mask_batch = mask_batch.unsqueeze(1).to("cuda:0", dtype=torch.float32)
+            mask_batch = mask_batch.unsqueeze(1).to("cuda:1", dtype=torch.float32)
 
             criterion_bec_loss = nn.BCELoss()
 
@@ -177,7 +177,7 @@ class AE_Segmentation2():
         #     pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda", dtype=torch.float32))
         
         with torch.no_grad():
-            pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda:0", dtype=torch.float32))
+            pred, feature_map = self.foreground_model(img_batch[:, :, :, :].to("cuda:1", dtype=torch.float32))
         pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
         # pred_pil.save("./pred_img_with_foreround_" + str(num1) + "_" + str(num2) + ".jpg")
         pred_np = np.array(pred_pil)[0][0]
@@ -213,9 +213,9 @@ class AE_Segmentation2():
         # if j <= 56:
         #     print(j)
         # self.background_model = torch.load("./exp2/checkpoint/save_" + str(i) + "_"+ str(j) + ".pt")
-        self.background_model = self.background_model.to("cuda:0", dtype=torch.float32)
+        self.background_model = self.background_model.to("cuda:1", dtype=torch.float32)
         with torch.no_grad():
-            pred, feature_map = self.background_model(img_without_augmentation[:, :, :, :].to("cuda:0", dtype=torch.float32))
+            pred, feature_map = self.background_model(img_without_augmentation[:, :, :, :].to("cuda:1", dtype=torch.float32))
         pred_pil = torchvision.transforms.ToPILImage()(pred[0].detach().cpu())
         # pred_pil.save("./pred_img_with_foreground_" + str(i) + "_" + str(j) + ".jpg")
 
@@ -224,7 +224,7 @@ class AE_Segmentation2():
         grid_np_x = grid_np[:, :, 0]
         grid_np_y = grid_np[:, :, 1]
 
-        error_map = torch.abs(pred - img_without_augmentation.to("cuda:0", dtype=torch.float32))
+        error_map = torch.abs(pred - img_without_augmentation.to("cuda:1", dtype=torch.float32))
         error_map = error_map.sum(axis = 1)
         error_map = (error_map - error_map.min()) / (error_map.max() - error_map.min())
         # function.write_heat_map(error_map[0].detach().cpu().numpy(), 0, "./error_background_" + str(i) + "_" + str(j))
@@ -296,7 +296,7 @@ if __name__ == '__main__':
     img_batch = img_total[0:1, :, :, :]
     # print(img_batch[:, :, 32:96, 32:96].mean())
     # print(img_batch[:, :, 0:, 0:32].mean() + img_batch[:, :, 0:32, 32:96].mean() + img_batch[:, :, 96:, 32:96].mean() + img_batch[:, :, 0:, 96:].mean())
-    noise = torch.rand((1, 3, 128, 128)).to("cuda:0", dtype=torch.float32)
+    noise = torch.rand((1, 3, 128, 128)).to("cuda:1", dtype=torch.float32)
     # img_with_noise = img_batch.clone()
     # img_with_noise[:, :, 32:96, 32:96] = 1.0-img_batch[:, :, 32:96, 32:96]
     img_pil = torchvision.transforms.ToPILImage()(img_batch[0].detach().cpu())

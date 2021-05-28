@@ -26,8 +26,6 @@ class IdentityTracker(Tracker):
             box {np.ndarray} -- Target bounding box (4x1,
                 [left, top, width, height]) in the first frame.
         """
-        # if self.count > -1+5:
-        #     assert False
         self.count+=1
         gt_path = self.path + self.data_list[self.count] + "/groundtruth.txt"
         print(gt_path)
@@ -39,8 +37,12 @@ class IdentityTracker(Tracker):
         self.box = box
         self.default_box = box
         self.tracker = My_Tracker.FCAE_tracker()
-        self.tracker.tracker_init(image, int(box[0]), int(box[1]), int(box[2]), int(box[3]), self.number_of_frame, self.count)
+        self.tracker.tracker_init(image, int(box[0]), int(box[1]), int(box[2]), int(box[3]), 1000, self.count)
         self.count_for_online_train = 0
+        self.real_x = int(box[0])
+        self.real_y = int(box[1])
+        self.real_w = int(box[2])
+        self.real_h = int(box[3])
     def update(self, image):
         """Locate target in an new frame and return the estimated bounding box.
         Arguments:
@@ -49,19 +51,18 @@ class IdentityTracker(Tracker):
             np.ndarray -- Estimated target bounding box (4x1,
                 [left, top, width, height]) in ``image``.
         """
-        # rect = self.gt.readline().split(',')
-        # real_x, real_y, real_w, real_h = int(float(rect[0])), int(float(rect[1])), int(float(rect[2])), int(float(rect[3]))
-        x, y, w, h = self.tracker.tracker_inference_for_eval(image, self.count, True)
-        self.count_for_online_train += 1
-        if self.count_for_online_train % 3 == 0:
-        # if self.count_for_online_train == 3:
-            self.tracker.tracker_update(self.count, 0)
-            # self.tracker.tracker_update(self.count, 1)
-            # self.tracker.tracker_update(self.count, 2)
-        # if self.count_for_online_train == 6:
-        #     self.tracker.tracker_update(self.count)
-        # x, y, w, h = self.tracker.tracker_inference_for_eval(image, self.count, False)
+        rect = self.gt.readline().split(',')
+        # if self.count_for_online_train > 2:
+        x, y, w, h = self.tracker.tracker_inference_for_eval(image, self.count, True, self.real_x, self.real_y, self.real_w, self.real_h)
+        real_x, real_y, real_w, real_h = int(float(rect[0])), int(float(rect[1])), int(float(rect[2])), int(float(rect[3]))
+        self.real_x, self.real_y, self.real_w, self.real_h = real_x, real_y, real_w, real_h
+        # self.tracker.tracker_update(self.count, 0)
         self.box = [float(x), float(y), float(w), float(h)]
+        self.count_for_online_train+=1
+        # if self.count_for_online_train == 15:
+        #     assert False
+        # if self.count_for_online_train % 5 == 0:
+        #     self.tracker.tracker_init(image, x, y, w, h, 1000, self.count)
         return self.box
 if __name__ == '__main__':
     # setup tracker
@@ -73,6 +74,7 @@ if __name__ == '__main__':
         result_dir='./results',       # where to store tracking results
         report_dir='./reports'        # where to store evaluation reports
     )
+    # experiment = ExperimentVOT(root_dir="D:/VOT_2017/", version=2017, experiments=('unsupervised'))
     # run experiments on GOT-10k
     experiment.run(tracker, visualize=False)
     # report performance on GOT-10k

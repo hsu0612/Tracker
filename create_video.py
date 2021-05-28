@@ -2,20 +2,20 @@ import os
 import cv2
 
 # img_list
-img_list = os.listdir("D:/SegTrackv2/JPEGImages/bird_of_paradise/")
+img_list = os.listdir("D:/GOT/val/GOT-10k_Val_000008/")
 # img_list.remove("absence.label")
 # img_list.remove("cover.label")
 # img_list.remove("cut_by_image.label")
 # img_list.remove("meta_info.ini")
-# img_list.remove("groundtruth.txt")
+img_list.remove("groundtruth.txt")
 # gt_list
 # gt  = open("D:/GOT/val/GOT-10k_Val_000001/" + "groundtruth.txt")
 
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-out = cv2.VideoWriter('./output.mp4', fourcc, 20.0, (640,  360))
+out = cv2.VideoWriter('./output.mp4', fourcc, 20.0, (1920,  1080))
 
 for index, i in enumerate(img_list):
-    img = cv2.imread("D:/SegTrackv2/JPEGImages/bird_of_paradise/" + i)
+    img = cv2.imread("D:/GOT/val/GOT-10k_Val_000008/" + i)
     # get bbox
     # bbox = gt.readline()
     # x, y, w, h = bbox.split(",")
