@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-x, y = np.meshgrid(np.linspace(-1,1,64), np.linspace(-1,1,64))
+x, y = np.meshgrid(np.linspace(-1,1,63), np.linspace(-1,1,64))
 d = np.sqrt(x*x+y*y)
 sigma, mu = 0.5, 0.0
 g_kernel = np.exp(-( (d-mu)**2 / ( 2.0 * sigma**2 ) ) )

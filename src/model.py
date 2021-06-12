@@ -167,118 +167,6 @@ class FCNet_fore(nn.Module):
         output = self.sigmoid(output)
         return output, feature_map
 
-class VAENet(nn.Module):
-    def __init__(self):
-        # Necessary
-        super().__init__()
-        channel_1 = 32
-        channel_2 = 64
-        channel_3 = 128
-        channel_4 = 256
-        channel_5 = 32
-        self.maxpool = nn.MaxPool2d((2, 2), stride = 2)
-        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
-
-        self.encoder1 = nn.Conv2d(3, channel_1, kernel_size=5, stride=1, padding=2)
-        self.encoder2 = nn.Conv2d(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
-        self.encoder3 = nn.Conv2d(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
-        self.encoder4 = nn.Conv2d(channel_3, channel_4, kernel_size=3, stride=1, padding=1)
-        self.encoder5 = nn.Conv2d(channel_4, channel_5, kernel_size=3, stride=1, padding=1)
-
-        self.fc1 = nn.Flatten()
-        self.fc22 = nn.Linear(2048, 32)
-        self.fc23 = nn.Linear(2048, 32)
-        self.fc3 = nn.Linear(32, 2048)
-
-        self.decoder1 = nn.Conv2d(channel_5, channel_4, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder2 = nn.Conv2d(channel_4, channel_3, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder3 = nn.Conv2d(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder4 = nn.Conv2d(channel_2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder5 = nn.Conv2d(channel_1, 1, kernel_size=5, stride=1, padding=2, dilation=1)
-    # VAE
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-    def forward(self, x):
-        # first
-        feature_map = self.encoder1(x)
-        feature_map = self.relu(feature_map)
-        # second
-        output = self.encoder2(feature_map)
-        output = self.maxpool(output)
-        output = self.relu(output)
-        # third
-        output = self.encoder3(output)
-        output = self.maxpool(output)
-        output = self.relu(output)
-        # forth
-        output = self.encoder4(output)
-        output = self.maxpool(output)
-        output = self.relu(output)
-        # fifth
-        output = self.encoder5(output)
-        output = self.maxpool(output)
-        output = self.relu(output)
-
-        temp_1 = output.shape[1]
-        temp_2 = output.shape[2]
-        temp_3 = output.shape[3]
-        output = self.fc1(output)
-
-        output_fc1 = output
-        # mean, var
-        mu = self.fc22(output)
-        logvar = self.fc23(output)
-        output = self.reparameterize(mu, logvar)
-        output = self.fc3(output)
-        output = output.reshape(-1, temp_1, temp_2, temp_3)
-
-        # first
-        output = self.decoder1(output)
-        output = self.relu(output)
-        # sceond
-        output = self.decoder2(output)
-        output = self.up(output)
-        output = self.relu(output)
-        # third
-        output = self.decoder3(output)
-        output = self.up(output)
-        output = self.relu(output)
-        # forth
-        output = self.decoder4(output)
-        output = self.up(output)
-        output = self.relu(output)
-        # fifth
-        output = self.decoder5(output)
-        output = self.up(output)
-        output = self.sigmoid(output)
-
-        # inference
-        inference = self.fc3(mu)
-        inference = inference.reshape(-1, temp_1, temp_2, temp_3)
-        # first
-        inference = self.decoder1(inference)
-        inference = self.relu(inference)
-        # sceond
-        inference = self.decoder2(inference)
-        inference = self.up(inference)
-        inference = self.relu(inference)
-        # third
-        inference = self.decoder3(inference)
-        inference = self.relu(inference)
-        # forth
-        inference = self.decoder4(inference)
-        inference = self.up(inference)
-        inference = self.relu(inference)
-        # fifth
-        inference = self.decoder5(inference)
-        inference = self.sigmoid(inference)
-
-        return output, feature_map, mu, logvar, inference, output_fc1
-
 class Discriminator(nn.Module):
     def __init__(self):
         # Necessary
@@ -293,12 +181,6 @@ class Discriminator(nn.Module):
         self.conv1 = nn.Conv2d(3, channel_1, kernel_size=5, stride=1, padding=2)
         self.encoder2 = ConvBlock(channel_1, channel_2, kernel_size=3, stride=1, padding=1)
         self.encoder3 = ConvBlock(channel_2, channel_3, kernel_size=3, stride=1, padding=1)
-        # decoder
-        self.decoder11 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder12 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder21 = DeConvBlock(channel_2*2, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder22 = nn.Conv2d(channel_1, channel_1, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.decoder3 = DeConvBlock(channel_1*2, 1, kernel_size=5, stride=1, padding=2, dilation=1)
         # segmentation
         self.seg_decoder11 = DeConvBlock(channel_3, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
         self.seg_decoder12 = nn.Conv2d(channel_2, channel_2, kernel_size=3, stride=1, padding=1, dilation=1)
@@ -313,17 +195,6 @@ class Discriminator(nn.Module):
         feature_map_1 = self.maxpool(feature_map)
         feature_map_2 = self.encoder2(feature_map_1)
         feature_map_3 = self.encoder3(feature_map_2)
-        # decoder
-        output = self.decoder11(feature_map_3)
-        output = self.relu(output)
-        output = self.decoder12(output)
-        output = self.relu(output)
-        output = self.decoder21(torch.cat((feature_map_2, output), 1))
-        output = self.relu(output)
-        output = self.decoder22(output)
-        output = self.relu(output)
-        output = self.decoder3(torch.cat((feature_map_1, output), 1))
-        output = self.sigmoid(output)
         # segmentation
         seg_output = self.seg_decoder11(feature_map_3)
         seg_output = self.relu(seg_output)
@@ -335,4 +206,4 @@ class Discriminator(nn.Module):
         seg_output = self.relu(seg_output)
         seg_output = self.seg_decoder3(torch.cat((feature_map_1, seg_output), 1))
         seg_output = self.sigmoid(seg_output)
-        return output, seg_output, feature_map_3
+        return seg_output, feature_map_3

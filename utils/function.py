@@ -102,24 +102,24 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
     # img_pil = torchvision.transforms.ToPILImage()(search[0].detach().cpu())
     # img_pil_d = ImageDraw.Draw(img_pil)
     # img_pil_d.rectangle([pred_x, pred_y, pred_x+pred_w, pred_y+pred_h], outline ="red")
-    # img_pil.save("./mask_" + str(0) + ".jpg")
+    # img_pil.save("./maskqw_" + str(0) + ".jpg")
 
     # pred_center_x = pred_x + pred_w/2
     # pred_center_y = pred_y + pred_h/2
     new_center_x, new_center_y = (pred_center_x*2*w/128) + (x - 1/2*w), (pred_center_y*2*h/128) + (y - 1/2*h)
 
     # magic
-    if abs((new_w - w) / img.shape[2]) > 0.025:
-        w = int(new_w*0.5 + w*0.5)
-    else:
-        w = int(new_w)
-    if abs((new_h - h) / img.shape[3]) > 0.025:
-        h = int(new_h*0.5 + h*0.5)
-    else:
-        h = int(new_h)
+    # if abs((new_w - w) / img.shape[2]) > 0.025:
+    #     w = int(new_w*0.5 + w*0.5)
+    # else:
+    #     w = int(new_w)
+    # if abs((new_h - h) / img.shape[3]) > 0.025:
+    #     h = int(new_h*0.5 + h*0.5)
+    # else:
+    #     h = int(new_h)
 
-    # w = int(new_w)
-    # h = int(new_h)
+    w = int(new_w)
+    h = int(new_h)
 
     if w > img.shape[2]:
         w = img.shape[2]
@@ -129,14 +129,14 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
     # x = new_center_x - w/2
     # y = new_center_y - h/2
 
-    if abs((new_center_x - w/2 - x) / img.shape[2]) > 0.025:
-        x = int((new_center_x - w/2)*0.5 + x*0.5)
-    else:
-        x = new_center_x - w/2
-    if abs((new_center_y - h/2 - y) / img.shape[3]) > 0.025:
-        y = int((new_center_y - h/2)*0.5 + y*0.5)
-    else:
-        y = new_center_y - h/2
+    # if abs((new_center_x - w/2 - x) / img.shape[2]) > 0.025:
+    #     x = int((new_center_x - w/2)*0.5 + x*0.5)
+    # else:
+    #     x = new_center_x - w/2
+    # if abs((new_center_y - h/2 - y) / img.shape[3]) > 0.025:
+    #     y = int((new_center_y - h/2)*0.5 + y*0.5)
+    # else:
+    #     y = new_center_y - h/2
 
     # # scale list
     # factor_list = np.array([1.0, 0.98, 1.02, 0.98*0.98, 1.02*1.02])
@@ -165,8 +165,8 @@ def get_obj_x_y_w_h(threshold_map, threshold_map_seg, x, y, w, h, img, device, d
 
     # x = new_center_x - w/2
     # y = new_center_y - h/2
-    # x = new_x
-    # y = new_y
+    x = new_x
+    y = new_y
     return x, y, w, h, True
 def gradient(pred):
         D_dy = pred[:, :, 1:] - pred[:, :, :-1]
@@ -187,6 +187,12 @@ def get_x_y_w_h(mask):
     pred_left, pred_top = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_LEFT], stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_TOP]
     pred_right, pred_bottom = stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_WIDTH] + pred_left, stats[np.argmax(np.array(lblareas)) + 1, cv2.CC_STAT_HEIGHT] + pred_top
     return pred_left, pred_top, pred_right, pred_bottom
+def get_gaussian(w, h):
+    x, y = np.meshgrid(np.linspace(-1,1,w), np.linspace(-1,1,h))
+    d = np.sqrt(x*x+y*y)
+    sigma, mu = 0.5, 0.0
+    g_kernel = np.exp(-( (d-mu)**2 / ( 2.0 * sigma**2 ) ) )
+    return g_kernel
 # check function
 # in: numpy(float), out: write image by opencv
 def write_heat_map(img, count, write_path):

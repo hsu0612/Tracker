@@ -45,14 +45,14 @@ if __name__ == '__main__':
 
     # setup experiment (validation subset)
     experiment = ExperimentGOT10k(
-        root_dir="D:/GOT/",          # GOT-10k's root directory
+        root_dir='/media/hsu/data/GOT',          # GOT-10k's root directory
         # experiments=('supervised')
         subset='val',               # 'train' | 'val' | 'test'
         # # version=2013
         result_dir='results',       # where to store tracking results
         report_dir='reports'        # where to store evaluation reports
     )
-    experiment = ExperimentGOT10k("D:/GOT/", subset='val')
+    experiment = ExperimentGOT10k('/media/hsu/data/GOT', subset='val')
     # experiment = ExperimentVOT(root_dir="D:/VOT_2017/", version=2017, experiments=('unsupervised'))
 
     # run experiments on GOT-10k

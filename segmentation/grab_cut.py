@@ -18,8 +18,10 @@ class Grabcut():
         return mask2
 
 if __name__ == '__main__':
-    img = np.array(cv2.imread('./test2.jpg'))
+    img = np.array(cv2.imread('./img_30_0.jpg'))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     grabcut = Grabcut()
     mask = grabcut.get_mask(img)
     img = img*mask[:,:,np.newaxis]
     plt.imshow(img),plt.colorbar(),plt.show()
+    plt.imsave("123.jpg", img)
