@@ -2,8 +2,6 @@
 
 from got10k.trackers import Tracker
 from got10k.experiments import ExperimentGOT10k
-from got10k.experiments import ExperimentOTB
-from got10k.experiments import ExperimentVOT
 
 class IdentityTracker(Tracker):
     """Example on how to define a tracker.
@@ -44,16 +42,7 @@ if __name__ == '__main__':
     tracker = IdentityTracker()
 
     # setup experiment (validation subset)
-    experiment = ExperimentGOT10k(
-        root_dir='/media/hsu/data/GOT',          # GOT-10k's root directory
-        # experiments=('supervised')
-        subset='val',               # 'train' | 'val' | 'test'
-        # # version=2013
-        result_dir='results',       # where to store tracking results
-        report_dir='reports'        # where to store evaluation reports
-    )
     experiment = ExperimentGOT10k('/media/hsu/data/GOT', subset='val')
-    # experiment = ExperimentVOT(root_dir="D:/VOT_2017/", version=2017, experiments=('unsupervised'))
 
     # run experiments on GOT-10k
     experiment.run(tracker, visualize=False)

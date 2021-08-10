@@ -1,7 +1,6 @@
 from __future__ import absolute_import, print_function
 from got10k.trackers import Tracker
 from got10k.experiments import ExperimentGOT10k
-from got10k.experiments import ExperimentVOT
 import src.My_Tracker as My_Tracker
 import sys
 import os
@@ -11,7 +10,7 @@ import cv2
 sys.path.append('./')
 from eco import ECOTracker
 import utils.function as function
-ROOT_DIR = '/media/hsu/data/GOT'
+ROOT_DIR = '/mnt/disk2-part1/GOT/'
 class IdentityTracker(Tracker):
     """Example on how to define a tracker.
         To define a tracker, simply override ``init`` and ``update`` methods
@@ -22,9 +21,10 @@ class IdentityTracker(Tracker):
             name='IdentityTracker', # name of the tracker
             is_deterministic=True   # deterministic (True) or stochastic (False)
         )
-        self.path = "/media/hsu/data/GOT/val/"
+        self.path = "/mnt/disk2-part1/GOT/val/"
         self.data_list = os.listdir(self.path)
-        self.count = -1+110
+        self.count = -1
+        self.video_num = -1
     def init(self, image, box):
         """Initialize your tracking model in the first frame
         Arguments:
@@ -34,17 +34,19 @@ class IdentityTracker(Tracker):
         """
         self.flag = False
         self.count+=1
-        gt_path = self.path + self.data_list[self.count] + "/groundtruth.txt"
-        print(gt_path)
-        self.number_of_frame = len(os.listdir(self.path + self.data_list[self.count]))-5
-        print(self.number_of_frame)
-        self.gt = open(gt_path)
-        rect = self.gt.readline().split(',')
+        self.video_num+=1
+        # gt_path = self.path + self.data_list[self.count] + "/groundtruth.txt"
+        # print(gt_path)
+        # self.number_of_frame = len(os.listdir(self.path + self.data_list[self.count]))-5
+        self.number_of_frame = 800
+        # print(self.number_of_frame)
+        # self.gt = open(gt_path)
+        # rect = self.gt.readline().split(',')
 
         self.box = box
         self.default_box = box
         self.seg_tracker = My_Tracker.FCAE_tracker(self.number_of_frame)
-        self.seg_tracker.tracker_init(image, int(box[0]), int(box[1]), int(box[2]), int(box[3]), 1000, self.count)
+        self.seg_tracker.tracker_init(image, int(box[0]), int(box[1]), int(box[2]), int(box[3]), 1000, self.video_num)
         self.eco_tracker = ECOTracker(True)
         self.eco_tracker.init(np.array(image), [int(box[0]), int(box[1]), int(box[2]), int(box[3])])
         self.count_for_online_train = 0
@@ -99,35 +101,29 @@ class IdentityTracker(Tracker):
         score_gray = cv2.cvtColor(score, cv2.COLOR_BGR2GRAY)
         gaussian = function.get_gaussian(score.shape[1], score.shape[0])
 
-        if self.count_img < 100:
-            self.count_for_online_train+=1
-            seg_x, seg_y, seg_w, seg_h = self.seg_tracker.tracker_save_img(image, int(new_bbox[0]), int(new_bbox[1]), int(new_bbox[2]), int(new_bbox[3]))
-            if self.count_for_online_train > 3 and abs(gaussian - score_gray).mean() > 140.0:                                                                                                                                            
-                seg_x, seg_y, seg_w, seg_h = self.seg_tracker.tracker_update(image, int(new_bbox[0]), int(new_bbox[1]), int(new_bbox[2]), int(new_bbox[3]), 1000, self.count)
-                self.count_for_online_train = 1
+        # if self.count_img < 1919:
+        self.count_for_online_train+=1
+        seg_x, seg_y, seg_w, seg_h = self.seg_tracker.tracker_save_img(image, int(new_bbox[0]), int(new_bbox[1]), int(new_bbox[2]), int(new_bbox[3]))
+        if self.count_for_online_train > 3 and abs(gaussian - score_gray).mean() > 140.0:                                                                                                                                            
+            seg_x, seg_y, seg_w, seg_h = self.seg_tracker.tracker_update(image, int(new_bbox[0]), int(new_bbox[1]), int(new_bbox[2]), int(new_bbox[3]), 1000, self.video_num)
+            self.count_for_online_train = 1
 
-            if  self.count_for_online_train > 6:
-                seg_x, seg_y, seg_w, seg_h = self.seg_tracker.tracker_update(image, int(new_bbox[0]), int(new_bbox[1]), int(new_bbox[2]), int(new_bbox[3]), 1000, self.count)
-                self.count_for_online_train = 1
+        if  self.count_for_online_train > 6:
+            seg_x, seg_y, seg_w, seg_h = self.seg_tracker.tracker_update(image, int(new_bbox[0]), int(new_bbox[1]), int(new_bbox[2]), int(new_bbox[3]), 1000, self.video_num)
+            self.count_for_online_train = 1
 
-            if abs(gaussian - score_gray).mean() > 140.0:
-                new_bbox[0] = seg_x
-                new_bbox[1] = seg_y
-                new_bbox[2] = seg_w
-                new_bbox[3] = seg_h
+        if abs(gaussian - score_gray).mean() > 140.0:
+            new_bbox[0] = seg_x
+            new_bbox[1] = seg_y
+            new_bbox[2] = seg_w
+            new_bbox[3] = seg_h
         
         return new_bbox
 if __name__ == '__main__':
     # setup tracker
     tracker = IdentityTracker()
     # setup experiment
-    experiment = ExperimentGOT10k(
-        root_dir=ROOT_DIR,          # GOT-10k's root directory
-        subset='val',               # 'train' | 'val' | 'test'
-        result_dir='./results',       # where to store tracking results
-        report_dir='./reports'        # where to store evaluation reports
-    )
-    # experiment = ExperimentVOT(root_dir="D:/VOT_2017/", version=2017, experiments=('unsupervised'))
+    experiment = ExperimentGOT10k('/media/hsu/data/GOT', subset='val')
     # run experiments on GOT-10k
     experiment.run(tracker, visualize=False)
     # report performance on GOT-10k

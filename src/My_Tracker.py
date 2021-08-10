@@ -143,6 +143,8 @@ class FCAE_tracker():
                 print(loss)
         print("background finish !!!")
 
+        torch.save(self.model_background, "./checkpoint/model_background_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
+
         # pred
         with torch.no_grad():
             pred, feature_map = self.model_background(search.to(self.device, dtype=self.data_type))
@@ -227,7 +229,7 @@ class FCAE_tracker():
             optimizer.step()
         print("foreground finish !!!")
 
-        # torch.save(self.model_discriminator, "./checkpoint/model_discriminator_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
+        torch.save(self.model_discriminator, "./checkpoint/model_discriminator_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
         # self.model_discriminator = torch.load("./checkpoint/model_discriminator_save_" + str(0) + "_"+ str(0) + ".pt")
         # self.model_discriminator = self.model_discriminator.to(self.device, dtype=torch.float32)
 
@@ -336,7 +338,7 @@ class FCAE_tracker():
                 print(loss)
         print("background finish !!!")
 
-        # torch.save(self.model_background, "./checkpoint/model_background_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
+        torch.save(self.model_background, "./checkpoint/model_background_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
 
         # check image_batch
         # for index1, i in enumerate(range(-64, 64, 32)):
@@ -448,7 +450,7 @@ class FCAE_tracker():
             optimizer.step()
         print("foreground finish !!!")
 
-        # # torch.save(self.model_discriminator, "./checkpoint/model_discriminator_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
+        torch.save(self.model_discriminator, "./checkpoint/model_discriminator_save_" + str(video_num) + "_"+ str(self.count_image) + ".pt")
         # # self.model_discriminator = torch.load("./checkpoint/model_discriminator_save_" + str(0) + "_"+ str(0) + ".pt")
         # # self.model_discriminator = self.model_discriminator.to(self.device, dtype=torch.float32)
 
