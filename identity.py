@@ -42,7 +42,7 @@ if __name__ == '__main__':
     tracker = IdentityTracker()
 
     # setup experiment (validation subset)
-    experiment = ExperimentGOT10k('/media/hsu/data/GOT', subset='val')
+    experiment = ExperimentGOT10k('/mnt/disk2-part1/GOT/', subset='val')
 
     # run experiments on GOT-10k
     experiment.run(tracker, visualize=False)
